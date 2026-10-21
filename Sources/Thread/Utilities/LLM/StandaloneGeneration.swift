@@ -1,0 +1,36 @@
+//
+//  StandaloneGeneration.swift
+//  Thread
+//
+//  Created by Ritesh Pakala on 10/28/25.
+//  Copyright © 2026 Rao Studios LLC.
+//
+
+import Foundation
+import Logging
+
+class StandaloneGeneration {
+    static func runEmbedding(
+        _ texts: [String],
+        modelProvider: any EmbeddingProviding,
+        logger: Logger,
+        role: EmbeddingRole
+    ) async throws -> [EmbeddingData] {
+        return try await modelProvider.run(texts, logger: logger, role: role).result
+    }
+
+    static func runAPIEmbedding(
+        _ texts: [String],
+        logger: Logger
+    ) async throws -> [EmbeddingData] {
+        var allData: [EmbeddingData] = []
+        let network = NetworkService(logger: logger)
+        let response = try await network.request(
+            Requests.Embedding.Get(input: texts, model: "mistral-embed", encodingFormat: "float")
+        )
+        for data in response.data {
+            allData.append(.init(embedding: .floats(data.embedding), index: data.index))
+        }
+        return allData
+    }
+}

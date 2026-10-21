@@ -1,0 +1,57 @@
+//
+//  Graph.swift
+//  Thread
+//
+//  Created by Ritesh Pakala on 10/21/26.
+//  Copyright © 2026 Rao Studios LLC.
+//
+
+import Foundation
+import Hummingbird
+
+func registerGraphRoute(
+    _ app: some RouterMethods<ThreadRequestContext>,
+    _ database: Database,
+    embeddingModelProvider: any EmbeddingProviding,
+    resolver: LaneResolver = .unscoped
+) {
+    app.post("/v1/graph") { request, context async throws -> GraphResponse in
+        let graphReq = try await request.decode(as: GraphRequest.self, context: context)
+        let lane = try resolver.scope(identity: context.callerIdentity).filter ?? .unscoped
+        let databaseReq = graphReq.thread.withRequestID(context.id).scoped(to: lane)
+
+        // No entity/query → browse mode: graphQuery returns the whole graph
+        // (kind-filtered, capped by mention count).
+
+        // Embed the free-text query for relationship and predicate matching.
+        var queryVector: [Float]?
+        if let query = graphReq.query, !query.isEmpty {
+            let embeds = try await StandaloneGeneration.runEmbedding(
+                [query], modelProvider: embeddingModelProvider, logger: database.logger.base, role: .query
+            )
+            if case .floats(let v) = embeds.first?.embedding { queryVector = v }
+        }
+
+        let result = database.graphQuery(
+            Database.GraphQuery(
+                entity: graphReq.entity,
+                queryVector: queryVector,
+                kinds: graphReq.kinds.map { Set($0.map { GraphStore.normalizeKind($0) }) },
+                hops: graphReq.hops ?? 1,
+                limit: graphReq.limit ?? 20,
+                includeDocuments: graphReq.includeDocuments ?? true
+            ),
+            request: databaseReq
+        )
+
+        return GraphResponse(
+            entities: result.entities,
+            relationships: result.relationships,
+            documents: result.documents,
+            stats: GraphResponseStats(
+                entityCount: result.entityCount,
+                relationshipCount: result.relationshipCount
+            )
+        )
+    }
+}

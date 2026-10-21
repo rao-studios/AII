@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package aii.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// aii-lanes/1: ~/.rao/aii/lanes.json, every lane on this Mac. The file is this message's proto3
+// JSON form; AII's Swift form is AIILanes. Registering an app writes its entry and its secret
+// (secrets/<app>); `aii lanes` lists, adds, re-owns and removes entries.
+//
+// Today the servers admit any app whose secret is in secrets/. The manifest is laid out so a
+// later change can make a node admit only the lanes it lists.
+message LaneManifest {
+  // "aii-lanes/1". A file in another format reads as absent and is rebuilt from secrets/.
+  string format = 1;
+  // By app name.
+  map<string, Lane> lanes = 2;
+}
+
+// One app's lane.
+message Lane {
+  // A lowercase uuid: UUID(HMAC-SHA256(device key, "rao-lane-v1:" + app)[0..<16]). Once written
+  // it stays, even when the device key rotates.
+  string id = 1;
+  // The fingerprint of the device key the id was derived from.
+  string derived_from = 2;
+  google.protobuf.Timestamp registered_at = 3;
+  // How people read the app's name. The first registration's stays.
+  string display_name = 4;
+  optional string bundle_identifier = 5;
+  // Who registered it: the app's name, or "aii" for the stack (`aii lanes add`).
+  string registered_by = 6;
+  // Whom the app's records are filed under, and whom Sewn answers as, when no one is signed in:
+  // "aii-local", shared by every app that opts in, or "local-<app>", the app's own.
+  string owner = 7;
+}

@@ -1,0 +1,474 @@
+syntax = "proto3";
+
+package thread.v1;
+
+// ── Sewn hosts this — Threads call it to join the network ────────────────────
+service ThreadRegistration {
+  rpc Register            (RegisterRequest)            returns (RegisterResponse);
+  rpc Heartbeat           (HeartbeatRequest)           returns (HeartbeatResponse);
+  rpc UpdateAvailability  (AvailabilityUpdateRequest)  returns (AvailabilityUpdateResponse);
+  // Bidirectional session: Thread holds the connection, Sewn sends requests over it.
+  // Thread opens this after Register succeeds and keeps it alive with Ping messages.
+  rpc Session (stream ThreadSessionMessage) returns (stream ThreadSessionMessage);
+}
+
+message RegisterRequest {
+  string thread_id  = 1;
+  string host      = 2;
+  int32  grpc_port = 3;
+  int32  http_port = 4;   // Thread's HTTP/REST port (for proxy forwarding)
+}
+
+message RegisterResponse {
+  bool   accepted      = 1;
+  string mothership_id = 2;
+}
+
+message HeartbeatRequest  { string thread_id = 1; }
+message HeartbeatResponse { bool   alive    = 1; }
+
+message AvailabilityUpdateRequest {
+  string thread_id          = 1;
+  bool   accepting_storage = 2;
+}
+
+message AvailabilityUpdateResponse {
+  bool acknowledged = 1;
+}
+
+// ── Thread hosts this — Sewn calls it for search/index/remove fan-out ────────
+service ThreadQuery {
+  rpc Search (ThreadSearchRequest) returns (ThreadSearchResponse);
+  rpc Index  (ThreadIndexRequest)  returns (ThreadIndexResponse);
+  rpc Remove (ThreadRemoveRequest) returns (ThreadRemoveResponse);
+}
+
+// ── Thread hosts this — Sewn calls it to update groups/documents + fetch stats
+service ThreadUpdate {
+  rpc UpdateGroup    (ThreadUpdateGroupRequest)    returns (ThreadUpdateGroupResponse);
+  rpc UpdateDocument (ThreadUpdateDocumentRequest) returns (ThreadUpdateDocumentResponse);
+  rpc Stats          (ThreadStatsRequest)          returns (ThreadStatsResponse);
+  // Deletes groups outright. Direct only: served on the node's own gRPC port to
+  // the client whose secret it checks, never carried on the Session stream — a
+  // group delete is not fanned out across nodes. See ThreadRemoveGroupsRequest.
+  rpc RemoveGroups   (ThreadRemoveGroupsRequest)   returns (ThreadRemoveGroupsResponse);
+}
+
+message ThreadSearchRequest {
+  repeated float  query_embedding        = 1;
+  repeated float  query_entity_embedding = 2;  // was query_tag_embedding (same wire format)
+  string          owner_id               = 3;
+  string          scope                  = 4;
+  int32           top_k                  = 5;
+  repeated string group_ids              = 6;
+  bool            aggregate              = 7;
+  string          query_text             = 8;  // raw query; Thread embeds if query_embedding is empty
+  repeated string entities               = 9;  // query entity terms for graph matching
+  // How the node reads the query. "code": `entities` and the identifiers in
+  // `query_text` (backticked, dotted, CamelCase, snake_case) are matched exactly
+  // against entity names with their namespace prefix (sym:, type:, memory:)
+  // stripped, and applied as a per-document boost — never a gate; the
+  // relationship-embedding match and expansion are skipped; only partitions
+  // deposited with media_type "code" are returned. "text": only text
+  // partitions, otherwise today's instrument. "": exactly the behaviour before
+  // this field existed. Results are sorted by score and top_k is honoured
+  // whatever this says.
+  string          media_type             = 10;
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string          lane                   = 11;
+  // Fill each result's name, group_id, metadata and url: what a record-shaped
+  // client (AIIInstance.recall) decodes a hit back into. Off: they stay empty.
+  bool            include_metadata       = 12;
+}
+
+message ThreadSearchResponse {
+  repeated ThreadPartitionResult results = 1;
+  ThreadGraphTrace               trace   = 2;  // how the knowledge graph shaped this search
+}
+
+// Graph provenance for a hybrid search: which entities matched the query and
+// which edges pulled in extra documents during one-hop expansion.
+message ThreadGraphTrace {
+  repeated string matched_entity_ids      = 1;
+  repeated string expansion_edge_ids      = 2;
+  int32           expanded_document_count = 3;
+  // Stored names of matched_entity_ids, parallel by index ("type:posix_spawn").
+  repeated string matched_entity_names    = 4;
+  // The media_type the node applied ("code" | "text" | ""). A node that
+  // predates the field leaves it empty on a "code" request, which is how a
+  // caller learns its spec was ignored.
+  string          media_type              = 5;
+}
+
+message ThreadPartitionResult {
+  string thread_id      = 1;
+  string partition_id  = 2;
+  string document_id   = 3;
+  string owner_id      = 4;
+  string text          = 5;
+  float  score         = 6;
+  int32  shard_index   = 7 [deprecated = true];  // always 0; shards retired with HNSW
+  // With include_metadata: the document's name, the group its owner filed it
+  // under (never another owner's), and its metadata bytes as deposited.
+  string name          = 8;
+  string group_id      = 9;
+  bytes  metadata      = 10;
+  // With include_metadata: the partition's own url when its filer gave one
+  // (ThreadIndexItem.partitions[i].url, such as a region of a picture); empty
+  // when the partition is addressed by its document.
+  string url           = 11;
+}
+
+message ThreadIndexRequest {
+  string                owner_id    = 1;
+  string                group_id    = 2;
+  string                group_label = 3;
+  string                scope       = 4;
+  repeated ThreadIndexItem items     = 5;
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string                lane        = 6;
+}
+
+message ThreadIndexItem {
+  string          document_id = 1;
+  repeated string texts       = 2;
+  repeated string tags        = 3;  // legacy: treated as concept entities when entities is empty
+  string          name        = 4;
+  // Kept byte for byte and returned with the document. From an app on AII: the
+  // aii-record/1 envelope's canonical JSON (aii.v1.Record, record.proto).
+  bytes           metadata    = 5;
+  string          media_type  = 6;
+  repeated ThreadGraphEntityIn   entities      = 7;  // caller-provided graph payload (optional;
+  repeated ThreadGraphRelationIn relationships = 8;  // Thread extracts when both are empty)
+  // Optional, parallel by index to `texts`: partitions the caller describes
+  // itself. A non-empty `embedding` is used as-is (Thread does not embed that
+  // text) and is kept, so it can be read back exactly; a non-empty `url` is the
+  // partition's own address instead of the document's.
+  repeated ThreadPartitionInput  partitions    = 9;
+}
+
+message ThreadPartitionInput {
+  repeated float embedding = 1;  // precomputed; empty = Thread embeds texts[i]
+  string         url       = 2;  // "" = the document's own url
+}
+
+message ThreadGraphEntityIn {
+  string name = 1;
+  string kind = 2;  // person|organization|place|event|work|concept|other; "" = concept
+}
+
+message ThreadGraphRelationIn {
+  string subject   = 1;
+  string predicate = 2;
+  string object    = 3;
+}
+
+message ThreadIndexResponse {
+  bool            success       = 1;
+  int32           indexed_count = 2;
+  repeated string full_cids     = 3;
+}
+
+message ThreadRemoveRequest {
+  string          owner_id     = 1;
+  repeated string document_ids = 2;  // empty = every document the owner holds in the lane
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string          lane         = 3;
+}
+
+message ThreadRemoveResponse {
+  bool  success       = 1;
+  int32 removed_count = 2;
+}
+
+message ThreadUpdateGroupRequest {
+  string owner_id          = 1;
+  string group_id          = 2;
+  string access            = 3;  // "available" | "restricted" | "" (no change)
+  string label             = 4;  // "" = no change
+  string group_description = 5;  // only applied when update_metadata = true
+  repeated string tags     = 6;  // only applied when update_metadata = true
+  bool update_metadata     = 7;  // when true, replaces description + tags
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string lane              = 8;
+}
+
+message ThreadUpdateGroupResponse {
+  bool   success  = 1;
+  string group_id = 2;
+}
+
+// Deletes each group the caller owns in its lane: every document filed in it
+// (unlinked for the caller, and purged — file, table, graph — when the caller
+// was its last owner), then the group itself, also when it is already empty. A
+// group the caller does not own, or of another lane, is left alone. No lane
+// field: this call is direct only, so the lane is always the one the request's
+// own secret resolves to. An empty id list removes nothing — never "everything",
+// as an empty ThreadRemoveRequest does.
+message ThreadRemoveGroupsRequest {
+  string          owner_id  = 1;
+  repeated string group_ids = 2;
+}
+
+message ThreadRemoveGroupsResponse {
+  bool            success                = 1;
+  repeated string removed_group_ids      = 2;  // the requested groups that are gone
+  int32           removed_document_count = 3;  // documents unlinked from the caller
+}
+
+message ThreadUpdateDocumentRequest {
+  string owner_id    = 1;
+  string document_id = 2;
+  string access      = 3;   // "available" | "restricted" | "" (no change)
+  string group_id    = 4;   // move to this group; "" = no change
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string lane        = 5;
+}
+
+message ThreadUpdateDocumentResponse {
+  bool   success     = 1;
+  string document_id = 2;
+}
+
+message ThreadStatsRequest {
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string lane = 1;
+}
+
+// One lane's share of the index. Entities and relationships are those any
+// document of the lane mentions; an entity two lanes mention counts in both.
+message ThreadLaneStats {
+  string lane          = 1;
+  int64  documents     = 2;
+  int64  groups        = 3;
+  int64  owners        = 4;
+  int64  entities      = 5;
+  int64  relationships = 6;
+}
+
+message ThreadStatsResponse {
+  int64 document_count          = 1;  // the caller's lane; the node when the caller has none
+  int64 group_count             = 2;
+  int64 owner_count             = 3;
+  int64 available_document_count = 4;
+  repeated ThreadLaneStats lanes = 5;  // every lane — answered to the stack identity only
+}
+
+// ── Thread hosts this — Sewn calls it for library fan-out ─────────────────────
+service ThreadLibrary {
+  rpc Library (ThreadLibraryRequest) returns (ThreadLibraryResponse);
+  // Full document content by id — the partition texts reassembled in stored
+  // order. Access rule matches search/graph: caller-owned or public docs
+  // only; anything else is silently omitted from the response.
+  rpc Documents (ThreadDocumentsRequest) returns (ThreadDocumentsResponse);
+  // Paged full-document export for training. Search snippets are not a
+  // corpus: this returns the same ThreadDocumentContent Documents does,
+  // filtered by group and optional document-id prefix, after_id exclusive.
+  rpc ExportCorpus (ThreadExportCorpusRequest) returns (ThreadExportCorpusResponse);
+}
+
+message ThreadDocument {
+  string id         = 1;
+  string url        = 2;
+  string owner_id   = 3;
+  string name       = 4;
+  int64  created_at = 5;
+}
+
+message ThreadGroup {
+  string                 id              = 1;
+  string                 label           = 2;
+  string                 owner_id        = 3;
+  repeated ThreadDocument documents       = 4;
+  string                 access          = 5;
+  double                 total_earnings  = 6;
+  string                 group_description = 7;
+  repeated string        tags            = 8;
+}
+
+message ThreadLibraryRequest {
+  string owner_id          = 1;
+  bool   include_available = 2;
+  int32  limit             = 3;  // 0 = no limit (return all)
+  string after_id          = 4;  // cursor: return groups with id > after_id (sorted); empty = start
+  string thread_id          = 5;  // UUID of this Thread node; set by Sewn for logging/validation
+  repeated string document_ids = 6;  // when non-empty, filter to groups containing these docs
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string lane               = 7;
+}
+
+message ThreadLibraryResponse {
+  repeated ThreadGroup groups   = 1;
+  bool                has_more = 2;  // true if more pages follow
+}
+
+message ThreadDocumentsRequest {
+  string          owner_id           = 1;
+  repeated string document_ids       = 2;
+  bool            include_embeddings = 3;  // fill ThreadDocumentContent.partitions
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string          lane               = 4;
+}
+
+message ThreadDocumentContent {
+  string          id          = 1;
+  string          name        = 2;
+  string          owner_id    = 3;
+  string          group_id    = 4;
+  string          group_label = 5;
+  int64           created_at  = 6;
+  repeated string texts       = 7;  // partition texts in stored order; join for full content
+  string          media_type  = 8;
+  // Only when the request sets include_embeddings: one entry per partition, in
+  // the same order as `texts`.
+  repeated ThreadPartitionOutput partitions = 9;
+  // The metadata the document was deposited with (ThreadIndexItem.metadata),
+  // byte for byte; empty when it had none. From an app on AII it is an
+  // aii-record/1 envelope (record.proto), whose `verified` carries the Rao
+  // Verified stamp a training export reads.
+  bytes           metadata    = 10;
+}
+
+message ThreadPartitionOutput {
+  string         id        = 1;
+  string         url       = 2;
+  repeated float embedding = 3;  // empty unless the caller supplied it at index time
+}
+
+message ThreadDocumentsResponse {
+  repeated ThreadDocumentContent documents = 1;  // inaccessible/unknown ids omitted
+}
+
+message ThreadExportCorpusRequest {
+  string          owner_id            = 1;
+  repeated string group_ids           = 2;  // empty = every group the owner can read
+  string          document_id_prefix  = 3;  // e.g. "mary-behavior-"; empty = any
+  string          after_id            = 4;  // exclusive cursor on sorted document id
+  int32           limit               = 5;  // 0 = no limit
+  bool            include_embeddings  = 6;  // fill ThreadDocumentContent.partitions
+  // Direct-RPC only (no session arm exists): the server derives the lane from
+  // the request's secret; this field is ignored.
+  string          lane                = 7;
+}
+
+message ThreadExportCorpusResponse {
+  repeated ThreadDocumentContent documents = 1;
+  bool                          has_more  = 2;
+}
+
+// ── Thread hosts this — Sewn calls it for knowledge-graph proxy routes ────────
+service ThreadGraph {
+  rpc Query (ThreadGraphQueryRequest) returns (ThreadGraphQueryResponse);
+}
+
+// entity: exact/token entity name to match; query: free text (Thread embeds it)
+// At least one of entity/query should be set. hops 0–3 (BFS depth from matches).
+message ThreadGraphQueryRequest {
+  string          owner_id          = 1;
+  string          entity            = 2;
+  string          query             = 3;
+  repeated string kinds             = 4;
+  int32           hops              = 5;
+  int32           limit             = 6;  // 0 = default
+  bool            include_documents = 7;
+  // The lane of the index this request is for. Trusted only on the Session
+  // stream, where Sewn stamps it from the secret that matched; ignored on a
+  // direct RPC, where the server derives it from the request's own secret.
+  string          lane              = 8;
+}
+
+message ThreadGraphEntity {
+  string          id            = 1;
+  string          name          = 2;
+  string          kind          = 3;
+  float           score         = 4;  // match score for seed entities; 0 for neighbors
+  int32           mention_count = 5;
+  repeated string document_ids  = 6;
+}
+
+message ThreadGraphRelationship {
+  string          id           = 1;
+  string          subject_id   = 2;
+  string          predicate    = 3;
+  string          object_id    = 4;
+  int32           weight       = 5;
+  repeated string document_ids = 6;
+}
+
+message ThreadGraphDocument {
+  string id       = 1;
+  string name     = 2;
+  string owner_id = 3;
+}
+
+message ThreadGraphStats {
+  int64 entity_count       = 1;  // the caller's lane; the node when the caller has none
+  int64 relationship_count = 2;
+  repeated ThreadLaneStats lanes = 3;  // every lane — answered to the stack identity only
+}
+
+message ThreadGraphQueryResponse {
+  repeated ThreadGraphEntity       entities      = 1;
+  repeated ThreadGraphRelationship relationships = 2;
+  repeated ThreadGraphDocument     documents     = 3;
+  ThreadGraphStats                 stats         = 4;
+}
+
+// ── Session envelope — used by the bidirectional Session RPC ─────────────────
+// Thread sends pings and response payloads; Sewn sends request payloads.
+// correlation_id ties each request to its response.
+// thread_id is set by Thread on every Ping so Sewn can identify the stream.
+message ThreadSessionMessage {
+  string correlation_id = 1;
+  string thread_id       = 2;
+
+  // 13–22 were the ThreadHNSW request/response arms, retired with the HNSW engine.
+  reserved 13 to 22;
+  reserved "hnsw_stats_request", "hnsw_stats_response",
+           "hnsw_graph_request", "hnsw_graph_response",
+           "hnsw_node_batch_request", "hnsw_node_batch_response",
+           "hnsw_node_request", "hnsw_node_response",
+           "hnsw_delete_node_request", "hnsw_delete_node_response";
+
+  oneof payload {
+    ThreadSessionPing             ping                      = 3;
+    ThreadSessionPong             pong                      = 4;
+    ThreadSearchRequest           search_request            = 5;
+    ThreadSearchResponse          search_response           = 6;
+    ThreadIndexRequest            index_request             = 7;
+    ThreadIndexResponse           index_response            = 8;
+    ThreadRemoveRequest           remove_request            = 9;
+    ThreadRemoveResponse          remove_response           = 10;
+    ThreadLibraryRequest          library_request           = 11;
+    ThreadLibraryResponse         library_response          = 12;
+    ThreadUpdateGroupRequest      update_group_request      = 23;
+    ThreadUpdateGroupResponse     update_group_response     = 24;
+    ThreadUpdateDocumentRequest   update_document_request   = 25;
+    ThreadUpdateDocumentResponse  update_document_response  = 26;
+    ThreadStatsRequest            stats_request             = 27;
+    ThreadStatsResponse           stats_response            = 28;
+    ThreadGraphQueryRequest       graph_request             = 29;
+    ThreadGraphQueryResponse      graph_response            = 30;
+    ThreadDocumentsRequest        documents_request         = 31;
+    ThreadDocumentsResponse       documents_response        = 32;
+  }
+}
+
+message ThreadSessionPing {}
+message ThreadSessionPong {}

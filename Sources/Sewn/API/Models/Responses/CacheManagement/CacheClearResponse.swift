@@ -1,0 +1,17 @@
+//
+//  CacheClearResponse.swift
+//  Sewn
+//
+//  Created by Ritesh Pakala on 10/26/25.
+//  Copyright © 2026 Rao Studios LLC.
+//  Based on: https://github.com/mzbac/swift-mlx-server
+//
+
+
+import Foundation
+
+/// Response model for cache clear operation
+struct CacheClearResponse: Codable {
+    let success: Bool
+    let message: String
+}

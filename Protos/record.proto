@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package aii.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// aii-record/1: the envelope every document in a lane is filed in. A document's metadata in
+// Thread is this message's proto3 JSON form; AII's Swift form is AIIRecord.
+//
+// On the wire a record is the document `<app>/<kind>/<id>`, filed in the group `<app>-<group.id>`.
+// The searchable text and the graph are not in the envelope: they are filed beside it, as the
+// document's partitions and entities (ThreadIndexItem), so metadata stays small.
+//
+// Readers ignore fields they don't know. AII writes the JSON canonically: sorted keys, `/`
+// unescaped, timestamps to the whole second in UTC (`2026-10-16T09:12:00Z`).
+message Record {
+  // "aii-record/1".
+  string format = 1;
+  // The app whose lane it is filed in: 2 to 32 of a-z and 0-9, starting with a letter.
+  string app = 2;
+  // The app's id for it, stable and unique within its kind: 1 to 128 of A-Z a-z 0-9 . _ : @ -
+  string id = 3;
+  // What it is, in an open vocabulary (note, reading, image): 1 to 32 of a-z 0-9 -, starting
+  // with a letter.
+  string kind = 4;
+  string title = 5;
+  Group group = 6;
+  Source source = 7;
+  // Words to match it by. Each is filed as a concept entity named as written, so a query that
+  // names the word finds the record through the graph.
+  repeated string tags = 8;
+  // The id of the record of the same kind this one replaces; it is removed once this one is filed.
+  optional string supersedes = 9;
+  // How its text is read: "text", "code" or "image". Open: a reader keeps a value it doesn't know.
+  string media_type = 10;
+  // When it was put in the lane.
+  google.protobuf.Timestamp remembered_at = 11;
+  // The app's own value. Numbers stay within ±2^53, so every JSON reader reads them exactly.
+  google.protobuf.Value payload = 12;
+  // The picture a visual record describes.
+  Image image = 13;
+  // A Rao Verified stamp, when the record carries one.
+  Verified verified = 14;
+}
+
+// Where a record is filed: the app's id for the group and a label people read.
+message Group {
+  // 1 to 64 of a-z 0-9 . _ -; on the wire `<app>-<id>`. A wire group belongs to the first owner
+  // and the first lane that file into it.
+  string id = 1;
+  string label = 2;
+}
+
+// Where a record came from.
+message Source {
+  // Who or what made it: "app", "user", "import", "sewn-summary"…
+  string kind = 1;
+  // Whatever finds the original again: a path, a URL, a session id.
+  optional string ref = 2;
+}
+
+// The picture a visual record describes. Its regions are not here: each is a partition of the
+// document whose url ends in the media fragment `#xywh=pixel:x,y,w,h` (ThreadPartitionInput).
+message Image {
+  // Its identity: the hex SHA-256 of its bytes, or of the app's canonical pixels.
+  string sha256 = 1;
+  // In pixels.
+  uint32 width = 2;
+  uint32 height = 3;
+  // "image/png", "image/jpeg".
+  optional string mime_type = 4;
+  // Where it lives, when the app knows: a file URL or the app's own URL.
+  optional string location = 5;
+  // When it was taken or made.
+  google.protobuf.Timestamp captured_at = 6;
+}
+
+// A Rao Verified stamp: the signed record of what a person read or made, and the seal over it,
+// made with the stack's signing key.
+message Verified {
+  // The Rao Verified record, as its canonical JSON.
+  string record = 1;
+  // The seal over it, base64.
+  string seal = 2;
+}

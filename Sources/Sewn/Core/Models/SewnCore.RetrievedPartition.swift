@@ -1,0 +1,39 @@
+//
+//  SewnCore.RetrievedPartition.swift
+//  Sewn
+//
+//  Created by Ritesh Pakala on 10/21/26.
+//  Copyright © 2026 Rao Studios LLC.
+//
+//  WHAT: One retrieved chunk and its rank signal — what the `local` provider hands
+//        SinatraHarness, the only text its side model ever encodes.
+//
+
+import Foundation
+
+extension SewnCore {
+    struct RetrievedPartition: Sendable, Equatable {
+        let id: String
+        let documentId: String
+        let text: String
+        /// Thread's PQ distance: lower is closer.
+        let score: Float
+        /// Document creation time. Thread search results do not carry it yet
+        /// (`ThreadPartitionResult` has no created_at), so SinatraHarness falls back to the
+        /// first time this owner retrieved the document.
+        let createdAt: Date?
+        /// Last modification time, same caveat. The newest known date sets the relevancy band.
+        var modifiedAt: Date? = nil
+
+        /// De-duplicated, in retrieval order, with each partition's search score.
+        static func from(_ partitions: [SewnCore.Partition], scores: [String: Float]) -> [RetrievedPartition] {
+            var seen = Set<String>()
+            return partitions.compactMap { partition in
+                guard seen.insert(partition.id).inserted else { return nil }
+                return RetrievedPartition(
+                    id: partition.id, documentId: partition.documentId, text: partition.text,
+                    score: scores[partition.id] ?? 0, createdAt: nil)
+            }
+        }
+    }
+}

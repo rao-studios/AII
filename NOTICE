@@ -1,0 +1,68 @@
+AII — the Ambient Intelligence Index
+Copyright 2026 Rao Studios
+
+This product includes software developed at Rao Studios.
+
+Licensed under the GNU General Public License, Version 3 (the "License"); you
+may not use these files except in compliance with the License. You may obtain
+a copy of the License in the LICENSE file beside this one, or at
+
+    https://www.gnu.org/licenses/gpl-3.0.html
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+--------------------------------------------------------------------------------
+What this licence does and does not cover
+--------------------------------------------------------------------------------
+
+It covers what is in this repository: the four libraries and the two binaries
+(`Sources/` — AII, Seam, Sewn, Thread; AIIServer and AIICLI), their tests
+(`Tests/`), the protocol definitions (`Protos/`), the example app
+(`Examples/Notes`), the scripts and the documentation under `Docs/`. Parts of
+it came from Conduit (Apache-2.0 at the time, relicensed here by its copyright
+holder), Sewn and Thread (GPL-3).
+
+It does not cover what a build pulls in. AII resolves its dependencies at build
+time and redistributes none of them here; each keeps its own licence. The
+direct ones — grpc-swift and its NIO transport and protobuf plugins,
+swift-protobuf, swift-log, swift-crypto, swift-argument-parser, hummingbird and
+hummingbird-websocket, swift-prometheus, supabase-swift — are Apache-2.0 or
+MIT; Web3.swift is MIT.
+
+Frigate (https://github.com/rao-studios/Frigate) is the one dependency behind
+the `Server` trait that is ours, resolved at build time like the rest, not
+vendored. It is MIT, except its `SinatraHarness` product and `sinatra-harness`
+command, which are GPL-3.0-only (Frigate's NOTICE and
+`Sources/SinatraHarness/LICENSE`). Frigate carries the MLX stack used for
+on-device inference, embeddings and graph extraction; its SinatraHarness
+product carries the on-device harness Sewn's `local` provider runs through.
+Until 2026-10 that product was its own repository
+(github.com/riteshpakala/SinatraHarness, archived).
+
+--------------------------------------------------------------------------------
+Models
+--------------------------------------------------------------------------------
+
+No model weights are included in this repository. The on-device defaults are
+pinned in `Sources/AII/Core/Models/AIIModels.swift`, downloaded from the Hugging
+Face Hub on first use, and carry their own licences:
+
+- Embeddings: `rao-studios/voyage-4-nano-mlx-8bit`, Rao Studios' MLX conversion of
+  voyage-4-nano (Copyright (c) 2026 MongoDB, Inc.; built on Qwen 3, Copyright
+  (c) 2024-2025 Alibaba Cloud), Apache License 2.0. The repository carries the
+  licence and the upstream NOTICE with Rao Studios' statement of the changes.
+- General models and graph extraction: `mlx-community/Ministral-3-8B-Instruct-2512-4bit`,
+  `mlx-community/Mistral-Nemo-Instruct-2407-4bit` and
+  `mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit`, MLX conversions of
+  Mistral AI's models, Apache License 2.0.
+- Vision: `rao-studios/Ministral-3-8B-Instruct-2512-mlx-8bit`, Rao Studios' MLX
+  conversion of Mistral AI's Ministral 3 8B, Apache License 2.0.
+- Coding: `rao-studios/Qwen3-Coder-Next-REAP-48B-A3B-mlx-4bit`, Rao Studios'
+  byte-identical mirror of andosen's MLX conversion of the REAP-pruned
+  Qwen3-Coder-Next (Qwen team), Apache License 2.0.
+
+The Mistral API backends (`mistral-embed`, `mistral-tiny` and the chat models)
+are a third-party hosted service governed by Mistral's terms.

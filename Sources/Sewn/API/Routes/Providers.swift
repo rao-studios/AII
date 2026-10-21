@@ -1,0 +1,353 @@
+//
+//  Providers.swift
+//  Sewn
+//
+//  Created by Ritesh Pakala on 10/21/26.
+//  Copyright © 2026 Rao Studios LLC.
+//
+//  WHAT: What backends this Sewn can actually serve, and a way to warm the
+//        on-device one before a turn waits on it.
+//  OUT:  GET /v1/providers, POST /v1/providers/local/warm,
+//        GET /v1/providers/local/sinatra/traces/{id}, GET /v1/providers/local/sinatra/analysis
+//  PIN:  Honest about absence. A provider with no key, or an on-device build
+//        with no Metal library, reports `available: false` WITH THE REASON —
+//        the client shows it rather than discovering it as a failed turn.
+//        Reachable without an account on a local stack (LocalOnlyGrant):
+//        the caller is then owner "local-<app>".
+//
+
+import AII
+import Foundation
+import HTTPTypes
+import Hummingbird
+import NIOCore
+
+struct ProviderCapabilities: Codable, ResponseEncodable {
+    var chat: Bool
+    var skills: Bool
+    var code: Bool
+    var complete: Bool
+    /// Embeddings and speech are Mistral-served for every provider. Vision is reported for
+    /// the local row only: this Mac's vision model (LocalVision) answers `/v1/vision/*`
+    /// when a request asks for `provider: local`.
+    var vision: Bool
+    var embeddings: Bool
+    var speech: Bool
+}
+
+struct ProviderInfo: Codable, ResponseEncodable {
+    var id: String
+    var displayName: String
+    var available: Bool
+    var isDefault: Bool
+    var state: String
+    var progress: Double?
+    var model: String
+    var capabilities: ProviderCapabilities
+    var reason: String?
+    /// SinatraHarness for the signed-in owner — the local row only.
+    var sinatra: SinatraStatusInfo?
+    /// The vision model a `provider: local` picture runs on, as a catalogue entry names it —
+    /// the local row only, when this build has the vision slot.
+    var visionModel: String? = nil
+    /// Whether that slot holds the model now: "cold" | "loading" | "ready". Local row only.
+    var visionState: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, available, state, progress, model, capabilities, reason, sinatra
+        case displayName = "display_name"
+        case isDefault = "default"
+        case visionModel = "vision_model"
+        case visionState = "vision_state"
+    }
+}
+
+/// One base model on the AII master list, and whether this Mac has it.
+struct CatalogModelInfo: Codable, ResponseEncodable, Equatable {
+    var id: String
+    /// embedding | generalSmall | generalStandard | generalLarge | vision | coding
+    var role: String
+    var vendor: String
+    var displayName: String
+    /// The pinned Hub revision; absent while the mirror is still to be made.
+    var revision: String?
+    /// "absent" | "downloading" | "installed" | "failed"
+    var state: String
+    var progress: Double?
+    var downloadBytes: Int64
+    var minimumMemoryGB: Int
+    /// Whether the stack itself runs it (it cannot be removed).
+    var kept: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, vendor, revision, state, progress, kept
+        case displayName = "display_name"
+        case downloadBytes = "download_bytes"
+        case minimumMemoryGB = "minimum_memory_gb"
+    }
+
+    init(_ entry: AIIModels.Entry, disk: LocalModelDisk) {
+        id = entry.id
+        role = entry.role.rawValue
+        vendor = entry.vendor.rawValue
+        displayName = entry.displayName
+        revision = entry.revision
+        state = disk.name
+        if case .downloading(let fraction) = disk { progress = fraction }
+        downloadBytes = entry.downloadBytes
+        minimumMemoryGB = entry.minimumMemoryGB
+        kept = AIIModels.isKept(entry.id)
+    }
+}
+
+struct ProvidersResponse: Codable, ResponseEncodable {
+    var providers: [ProviderInfo]
+    var `default`: String
+    /// The AII master list of base models, each with its place on this Mac.
+    var catalog: [CatalogModelInfo] = []
+}
+
+/// Optional body of `POST /v1/providers/local/warm`: the model the client will ask for.
+/// `load: false` only makes it the Mac's on-device model, without loading it (a client
+/// whose replies are hosted still chose the model its on-device jobs run).
+struct ProviderWarmRequest: Codable {
+    var model: String?
+    var load: Bool?
+}
+
+struct ProviderWarmResponse: Codable, ResponseEncodable {
+    var accepted: Bool
+    var state: String
+    var model: String
+}
+
+/// One model's place on this Mac (`GET /v1/providers/local/models`).
+struct LocalModelInfo: Codable, ResponseEncodable, Equatable {
+    var id: String
+    /// "absent" | "downloading" | "installed" | "failed"
+    var state: String
+    /// 0…1 while downloading.
+    var progress: Double?
+    var reason: String?
+
+    init(id: String, disk: LocalModelDisk) {
+        self.id = id
+        self.state = disk.name
+        switch disk {
+        case .downloading(let fraction): progress = fraction
+        case .failed(let reason): self.reason = reason
+        case .absent, .installed: break
+        }
+    }
+}
+
+struct LocalModelsResponse: Codable, ResponseEncodable {
+    var models: [LocalModelInfo]
+}
+
+/// Body of `POST /v1/providers/local/download` and `…/local/remove`.
+struct LocalModelRequest: Codable {
+    var model: String
+}
+
+/// One provider's row. Hosted availability is "is the key here"; local is
+/// "was this built with MLX, and is the Metal library beside the binary".
+func providerInfo(
+    _ provider: LLMProvider,
+    localState: LocalState,
+    localBuilt: Bool,
+    visionBuilt: Bool = false,
+    visionState: String? = nil,
+    sinatra: SinatraStatusInfo? = nil
+) -> ProviderInfo {
+    let hostedCapabilities = ProviderCapabilities(
+        chat: true, skills: true, code: true, complete: true,
+        vision: provider == .local && visionBuilt, embeddings: false, speech: false)
+    var available = true
+    var reason: String?
+    var state = "ready"
+
+    switch provider {
+    case .mistral, .tinker:
+        if let base = provider.hostedBase, base.apiKeyIfPresent == nil {
+            available = false
+            state = "unconfigured"
+            reason = ProviderUnavailable.missingKey(envVar: base.apiKeyEnvVar).description
+        }
+    case .local:
+        state = localState.name
+        if !localBuilt {
+            available = false
+            reason = ProviderUnavailable.localNotBuilt.description
+        } else if !LocalGPU.report().isSatisfied {
+            available = false
+            state = "failed"
+            reason = LocalGPU.remedy()
+        } else {
+            reason = localState.reason
+            if localState.reason != nil { available = false }
+        }
+    }
+
+    return ProviderInfo(
+        id: provider.rawValue,
+        displayName: provider.displayName,
+        available: available,
+        isDefault: provider == .serverDefault,
+        state: state,
+        progress: localState.fraction.flatMap { provider == .local ? $0 : nil },
+        model: ModelConfig.chatModel(for: provider),
+        capabilities: hostedCapabilities,
+        reason: reason,
+        sinatra: provider == .local ? sinatra : nil,
+        visionModel: provider == .local && visionBuilt ? (try? LocalVisionModel.parse(nil))?.name : nil,
+        visionState: provider == .local && visionBuilt ? visionState : nil)
+}
+
+func registerProvidersRoutes(
+    _ router: some RouterMethods<SewnRequestContext>,
+    modelProvider: ModelProvider
+) {
+    router.get("/v1/providers") { _, context async throws -> ProvidersResponse in
+        let state = await modelProvider.local.snapshot()
+        let built = await modelProvider.local.isBuilt
+        let visionBuilt = await modelProvider.vision.isBuilt
+        let visionState = await modelProvider.vision.stateName
+        var sinatra: SinatraStatusInfo?
+        if built, let owner = context.authUserId?.lowercased() {
+            sinatra = await modelProvider.local.sinatraStatus(owner: owner)
+        }
+        var catalog: [CatalogModelInfo] = []
+        for entry in AIIModels.all {
+            catalog.append(CatalogModelInfo(entry, disk: await modelProvider.localModels.disk(entry.id)))
+        }
+        return ProvidersResponse(
+            providers: LLMProvider.allCases.map {
+                providerInfo($0, localState: state, localBuilt: built, visionBuilt: visionBuilt,
+                             visionState: visionState, sinatra: sinatra)
+            },
+            default: LLMProvider.serverDefault.rawValue,
+            catalog: catalog)
+    }
+
+    /// Load the on-device model now, so the first turn does not pay for it.
+    /// Idempotent: a warm already in flight is joined, not restarted.
+    /// A body `{"model": "<hub id>"}` warms the model the client will ask for (Ambient's
+    /// chat-model field) instead of the configured default.
+    router.post("/v1/providers/local/warm") { request, context async throws -> ProviderWarmResponse in
+        let built = await modelProvider.local.isBuilt
+        guard built else {
+            throw HTTPError(
+                .serviceUnavailable, message: ProviderUnavailable.localNotBuilt.description)
+        }
+        var model = ModelConfig.chatModel(for: .local)
+        let body = try? await request.decode(as: ProviderWarmRequest.self, context: context)
+        if let requested = body?.model, !requested.isEmpty {
+            guard ModelConfig.accepts(requested, provider: .local) else {
+                throw HTTPError(.badRequest, message: "\(requested) is not an on-device model id.")
+            }
+            model = requested
+            // The client's choice is the Mac's on-device model: every local job follows it.
+            ModelConfig.chooseLocalModel(requested)
+        }
+        let local = modelProvider.local
+        if body?.load == false {
+            context.logger.info("[Providers] on-device model is now \(model) (not loaded)")
+        } else {
+            context.logger.info("[Providers] warming on-device \(model)")
+            Task { await local.warm(modelID: model) }
+        }
+        let state = await local.snapshot()
+        return ProviderWarmResponse(accepted: true, state: state.name, model: model)
+    }
+
+    /// Which of these on-device models are on this Mac: `?ids=org/a,org/b`.
+    router.get("/v1/providers/local/models") { request, _ async throws -> LocalModelsResponse in
+        let ids = (request.uri.queryParameters.get("ids") ?? "")
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        var models: [LocalModelInfo] = []
+        for id in ids.prefix(16) {
+            guard (try? LocalModelStoreError.validated(id)) != nil else {
+                throw HTTPError(.badRequest, message: LocalModelStoreError.invalidID(id).description)
+            }
+            models.append(LocalModelInfo(id: id, disk: await modelProvider.localModels.disk(id)))
+        }
+        return LocalModelsResponse(models: models)
+    }
+
+    /// Fetch an on-device model without loading it. Joins a download already running;
+    /// progress reads back from `GET /v1/providers/local/models`.
+    router.post("/v1/providers/local/download") { request, context async throws -> LocalModelInfo in
+        let body = try await request.decode(as: LocalModelRequest.self, context: context)
+        do {
+            // A master-list model at the commit the list pins, never the repo's latest.
+            let revision = AIIModels.entry(id: body.model)?.revision
+            try await modelProvider.localModels.download(body.model, revision: revision)
+        } catch let error as LocalModelStoreError {
+            throw HTTPError(error == .unavailable ? .serviceUnavailable : .badRequest, message: error.description)
+        }
+        return LocalModelInfo(id: body.model, disk: await modelProvider.localModels.disk(body.model))
+    }
+
+    /// Delete an on-device model from this Mac. Refused for the model in use or loading —
+    /// the vision model while its slot holds it, too — and for the models the stack itself
+    /// runs (`AIIModels.kept`: the standard general model and the embedder). Every other
+    /// master-list model may go: a client downloads it again on request (Ambient's
+    /// Settings › On-device).
+    router.post("/v1/providers/local/remove") { request, context async throws -> LocalModelInfo in
+        let body = try await request.decode(as: LocalModelRequest.self, context: context)
+        // The vision slot holding it is a wait, not a choice to change: it is let go on its own.
+        if await modelProvider.vision.activeHubIDs.contains(body.model) {
+            throw HTTPError(
+                .conflict,
+                message: "\(body.model) is reading pictures right now; it can be removed once it is let go, after \(Int(ModelConfig.localVisionIdleSeconds / 60)) idle minutes.")
+        }
+        var inUse: Set<String> = [ModelConfig.chatModel(for: .local)]
+        switch await modelProvider.local.snapshot() {
+        case .ready(let loaded): inUse.insert(loaded)
+        case .loading: inUse.insert(body.model)  // which model is loading is not reported: refuse
+        case .cold, .failed: break
+        }
+        do {
+            try await modelProvider.localModels.remove(
+                body.model, inUse: inUse, kept: AIIModels.kept)
+        } catch let error as LocalModelStoreError {
+            switch error {
+            case .invalidID: throw HTTPError(.badRequest, message: error.description)
+            case .unavailable: throw HTTPError(.serviceUnavailable, message: error.description)
+            case .inUse, .keptModel, .downloading: throw HTTPError(.conflict, message: error.description)
+            }
+        }
+        context.logger.info("[Providers] removed on-device \(body.model)")
+        return LocalModelInfo(id: body.model, disk: await modelProvider.localModels.disk(body.model))
+    }
+
+    /// One of the caller's SinatraHarness traces: how the injection moved the logits, and what
+    /// the retrieved context did to the answer, step by step.
+    router.get("/v1/providers/local/sinatra/traces/:traceId") { _, context async throws -> Response in
+        guard let owner = context.authUserId?.lowercased() else { throw HTTPError(.unauthorized) }
+        guard let raw = context.parameters.get("traceId"), let id = UUID(uuidString: raw) else {
+            throw HTTPError(.badRequest, message: "traceId must be a UUID.")
+        }
+        guard let data = await modelProvider.local.traceJSON(owner: owner, turnId: id) else {
+            throw HTTPError(.notFound, message: "No SinatraHarness trace \(raw) for this account.")
+        }
+        return sinatraJSONResponse(data)
+    }
+
+    /// Grounding over the caller's band: whether steering reduced drift, the first half of
+    /// the band against the second, and which documents the answers cite.
+    router.get("/v1/providers/local/sinatra/analysis") { _, context async throws -> Response in
+        guard let owner = context.authUserId?.lowercased() else { throw HTTPError(.unauthorized) }
+        guard let data = await modelProvider.local.analysisJSON(owner: owner) else {
+            throw HTTPError(.notFound, message: "No on-device model is loaded.")
+        }
+        return sinatraJSONResponse(data)
+    }
+}
+
+private func sinatraJSONResponse(_ data: Data) -> Response {
+    var headers = HTTPFields()
+    headers[.contentType] = "application/json"
+    return Response(status: .ok, headers: headers, body: .init(byteBuffer: ByteBuffer(bytes: data)))
+}
