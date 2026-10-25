@@ -14,6 +14,7 @@ an adaptive threshold of mean + 1.5σ of the training errors, at least 8.0. The 
 distances are illustrative; its shapes and rules are the code's.
 """
 
+import math
 import os
 import random
 import sys
@@ -523,7 +524,7 @@ def dotted(x0, y0, x1, y1, colour=GOLD, opacity=.6):
             f'opacity="{opacity}" stroke-linecap="round"/>')
 
 
-def partition_index():
+def partition_index_body():
     rng = random.Random(1024)
     vector = lambda: [rng.random() for _ in range(SUBVECTORS)]
     # The query's distance to each centroid; p₁'s path runs low, as a near partition's would.
@@ -568,30 +569,34 @@ def partition_index():
     axis(1176, 602, "the document’s, shared by all 160")
 
     # 2 · One partition becomes sixteen codes, and what they stand for.
-    # Slice 3 of every partition, drawn flat: four clusters, a centroid at the centre of each.
+    # Column 3 of the pin board, from the side: each row's pin where its slice would put it, the notches
+    # where the pins bunch up, and each pin sliding to its nearest.
     bx0, by0, bw, bh = 104, 884, 440, 230
-    centres = [(0.2, 0.3), (0.62, 0.24), (0.3, 0.76), (0.8, 0.7)]
-    points = [[(min(.97, max(.03, cx + rng.gauss(0, .075))), min(.95, max(.05, cy + rng.gauss(0, .09)))) for _ in range(40)]
-              for cx, cy in centres]
-    means = [(sum(x for x, _ in c) / len(c), sum(y for _, y in c) / len(c)) for c in points]
-    at = lambda x, y: (bx0 + x * bw, by0 + y * bh)
+    plate_x, x0, x1 = bx0 + 6, bx0 + 40, bx0 + bw - 6
+    centres = [0.14, 0.4, 0.63, 0.88]
+    rows = 15
+    depths = [min(.98, max(.02, centres[r % 4] + rng.gauss(0, .055))) for r in range(rows)]
+    depths[4] = centres[1] - 0.085                                   # p₁, a little short of notch 1
+    notch = [sum(d for r, d in enumerate(depths) if r % 4 == j) / len([r for r in range(rows) if r % 4 == j]) for j in range(4)]
+    X = lambda d: x0 + d * (x1 - x0)
     s.append(f'<rect x="{bx0 - 8}" y="{by0 - 8}" width="{bw + 16}" height="{bh + 16}" rx="10" fill="rgba(0,0,0,.12)" stroke="rgba(255,255,255,.07)"/>')
-    for cluster in points:
-        for x, y in cluster:
-            X, Y = at(x, y)
-            s.append(f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="2.6" fill="#6d6b64"/>')
-    for j, (x, y) in enumerate(means):
-        X, Y = at(x, y)
-        s.append(f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="8" fill="none" stroke="{GOLD}" stroke-width="1.8"/>'
-                 f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="2.4" fill="{GOLD}"/>')
-        labels.append(wire(X + 12, Y - 22, f"c{'₀₁₂₃'[j]}", GOLD))
-    p1 = at(means[1][0] - 0.09, means[1][1] + 0.13)
-    c1 = at(*means[1])
-    s.append(f'<line x1="{p1[0]:.1f}" y1="{p1[1]:.1f}" x2="{c1[0]:.1f}" y2="{c1[1]:.1f}" stroke="{GOLD}" stroke-width="1.4" stroke-dasharray="3 3"/>')
-    s.append(f'<circle cx="{p1[0]:.1f}" cy="{p1[1]:.1f}" r="5" fill="{LINE}"/>')
-    labels.append(wire(p1[0] - 34, p1[1] + 10, "p₁’s slice", LINE))
-    axis(bx0 - 8, 850, "slice 3 of all 160 partitions, 64 dimensions drawn in two")
-    labels.append(f'<div class="caption2 small" style="left:96px; top:{by0 + bh + 18}px; width:460px">k-means put each centroid at the centre of a cluster of the document’s own slices; p₁’s slice is replaced by the nearest, c₁</div>')
+    s.append(f'<rect x="{plate_x}" y="{by0 + 2}" width="12" height="{bh - 4}" rx="3" fill="#0d0d0c" stroke="#3a3936"/>')
+    for j, d in enumerate(notch):
+        s.append(f'<line x1="{X(d):.1f}" y1="{by0 + 6}" x2="{X(d):.1f}" y2="{by0 + bh - 6}" stroke="{GOLD}" stroke-width="1.2" stroke-dasharray="3 4" opacity=".7"/>')
+        s.append(f'<text x="{X(d):.1f}" y="{by0 - 12}" text-anchor="middle" font-family="{MONO}" font-size="11" fill="{GOLD}">{j}</text>')
+    step_y = (bh - 20) / (rows - 1)
+    for r, d in enumerate(depths):
+        y = by0 + 10 + r * step_y
+        j = min(range(4), key=lambda n: abs(notch[n] - d))
+        p1 = r == 4
+        s.append(f'<line x1="{plate_x + 12}" y1="{y:.1f}" x2="{X(d):.1f}" y2="{y:.1f}" stroke="{"#9a9ca1" if p1 else "#55575b"}" stroke-width="{1.8 if p1 else 1.2}"/>')
+        s.append(f'<line x1="{X(d):.1f}" y1="{y:.1f}" x2="{X(notch[j]):.1f}" y2="{y:.1f}" stroke="{GOLD}" stroke-width="{1.8 if p1 else 1}" opacity="{1 if p1 else .55}"/>')
+        s.append(f'<circle cx="{X(d):.1f}" cy="{y:.1f}" r="{5 if p1 else 3.4}" fill="{LINE if p1 else "#7d7b74"}"/>')
+        s.append(f'<circle cx="{X(notch[j]):.1f}" cy="{y:.1f}" r="{6.5 if p1 else 4.2}" fill="none" stroke="{GOLD}" stroke-width="{1.8 if p1 else 1.1}"/>')
+        if p1:
+            labels.append(wire(X(notch[j]) + 12, y - 9, "p₁ → notch 1", GOLD))
+    axis(bx0 - 8, 834, "column 3 of the board, from the side: one pin a row")
+    labels.append(f'<div class="caption2 small" style="left:96px; top:{by0 + bh + 18}px; width:460px">k-means cuts the notches where this column’s pins bunch up; each pin then slides to the nearest. Drawn as one depth; a real slice is 64 numbers.</div>')
     # p₁, its codes, and the vector the codes stand for.
     rx = 600
     v1 = vector()
@@ -600,7 +605,7 @@ def partition_index():
     s.append(strip(rx, 874, v1, h=20, mark=SLICE))
     rsx = rx + SLICE * CELL_W + CELL_W / 2
     s.append(dotted(rsx, 898, rsx, 941))
-    axis(rsx + 12, 910, "each slice to its nearest centroid", GOLD)
+    axis(rsx + 12, 910, "each slice to its nearest centroid: its notch", GOLD)
     s.append(codes_row(rx, 944, CODES, mark=SLICE))
     axis(rx + SUBVECTORS * CELL_W + 12, 948, "32 bytes", GOLD)
     s.append(dotted(rsx, 974, rsx, 1011))
@@ -608,7 +613,7 @@ def partition_index():
     s.append(strip(rx, 1014, approx, h=20, mark=SLICE))
     axis(rx, 1042, "p̂₁ · what the codes stand for: p₁ rebuilt from sixteen centroids", LINE)
     s.append(reply(bx0 + bw + 12, rx - 8, 957, GOLD, width=1.4))
-    axis(bx0 + bw + 16, 935, "c₁ → 1", GOLD)
+    axis(bx0 + bw + 16, 935, "code 1", GOLD)
     labels.append(f'<div class="caption2 small" style="left:{rx}px; top:1074px; width:600px">p̂₁ is not p₁, but it sits close to it in the same space. The gap is p₁’s reconstruction error, and the document’s errors set its threshold</div>')
     labels.append(f"""<div class="label why" style="left:1258px; top:852px; width:250px">
   <div class="machine">WHY IT CAN STILL BE SEARCHED</div>
@@ -678,10 +683,10 @@ def partition_index():
 .then {{ margin: 12px 0 0; font-size: 16px; line-height: 1.32; color: #a29f97; }}
 .then code {{ font-family: {MONO}; font-style: normal; font-size: 12.5px; color: #c3c0b7; }}
 </style>
-{card(70, 372, 1460, 374, head(step(1) + "A document becomes sixteen codebooks", GOLD, "ONCE, WHEN THE DOCUMENT IS FILED"))}
+{card(70, 372, 1460, 374, head(step(1) + "A document becomes sixteen codebooks" + board("cutting the notches"), GOLD, "ONCE, WHEN THE DOCUMENT IS FILED"))}
 <div class="caption2" style="left:96px; top:688px; width:1410px; font-size:16px">A partition is a segment of its document, a paragraph or a section, with one vector. Every vector, and every query, is cut at the same boundaries into sixteen 64-d slices; each codebook is trained on one slice of <b>all the document’s partitions together</b>, so the document’s sixteen codebooks are shared by every partition in it. k is the largest power of two at most n ÷ 39.</div>
-{card(70, 770, 1460, 448, head(step(2) + "A partition becomes sixteen codes", GOLD, "ITS COMPRESSED EMBEDDING"))}
-{card(70, 1242, 720, 336, head("Where each part lives", "", "MEMORY · DISK"))}
+{card(70, 770, 1460, 448, head(step(2) + "A partition becomes sixteen codes" + board("pressing a row"), GOLD, "ITS COMPRESSED EMBEDDING"))}
+{card(70, 1242, 720, 336, head("Where each part lives" + board("the board, in memory"), "", "MEMORY · DISK"))}
 <div class="cols" style="left:90px; top:1300px; width:680px">
   <div><div class="machine">IN MEMORY · WHAT SEARCH READS</div>
     {chip("codebooks", "16 × k centroids of 64 floats, one set per document")}
@@ -692,19 +697,72 @@ def partition_index():
     {chip("documents/&lt;id&gt;-parts", "each partition’s text and url, read only for hits")}
     {chip("the full vector", "in -parts only if the caller brought it; one Thread made is dropped once encoded", True)}</div>
 </div>
-{card(810, 1242, 720, 336, head(step(3) + "The ceiling: 65,536, for now", GOLD, "UINT16 CODES"))}
+{card(810, 1242, 720, 336, head(step(3) + "The ceiling: 65,536, for now" + board("notches a pin"), GOLD))}
 <div class="tiles" style="left:830px; top:1294px; width:680px">
   {tile("65,536", "centroids one UInt16 code can name: the most a codebook may hold today")}
   {tile("2<sup>256</sup>", "codes one partition can take: 65,536 choices in each of sixteen slices")}
   {tile("2,555,904", "partitions before a document’s k reaches 65,536: some 3.8 billion characters, at 1,500 a partition")}
   {tile("UInt8", "what it can come down to: 16 bytes a partition while k ≤ 256. Today’s documents sit at k = 2 to 64")}
 </div>
-{card(70, 1602, 1460, 400, head(step(4) + "A query finds its partition", LINE, "PER QUERY, PER CANDIDATE DOCUMENT"))}
-<svg width="{W}" height="2100">{"".join(s)}</svg>
+{card(70, 1602, 1460, 400, head(step(4) + "A query finds its partition" + board("holding the query up"), LINE, "PER QUERY, PER CANDIDATE DOCUMENT"))}
+{card(70, 2026, 1460, 330, head(step(5) + "From the board to the table" + board("every term"), GOLD, "THE ANALOGY, TERM BY TERM"))}
+<div class="label map" style="left:96px; top:2080px; width:960px">
+  <div class="mrow mhead"><span>on the pin board</span><span>in the index</span></div>
+  {"".join(f'<div class="mrow"><span>{a}</span><span>{b}</span></div>' for a, b in BOARD_TO_TABLE)}
+</div>
+<div class="label why" style="left:1110px; top:2080px; width:396px">
+  <div class="machine">WHY IT IS FAST</div>
+  <p>A partition costs <b>sixteen reads and adds</b>, not 1,024 multiplications against the query.</p>
+  <p>The ruler is cut once per document per query: 16 × k distances, however many partitions it holds.</p>
+  <p>Every candidate document is scanned at once, each on its own board.</p>
+</div>
+<svg width="{W}" height="2400">{"".join(s)}</svg>
 {"".join(labels)}"""
-    return plate("partition-index.png", 2074, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THREAD",
-                 "The partition index", "one per document: its vectors become codes, and a query is answered by lookups",
-                 body, "the codes and distances are illustrative; the shapes, the sizes and the rules are the code’s")
+    return body
+
+
+
+
+def board(text):
+    """Names a panel's part of the pin board (pin-board.png), beside its title."""
+    return f'<span class="board">on the pin board · {text}</span>'
+
+
+BOARD_TO_TABLE = [
+    ("the query’s pin in a column", "q<sub>i</sub>: the query’s slice i, 64 of its 1,024 numbers"),
+    ("a notch", "c<sub>ij</sub>: centroid j of the document’s codebook i"),
+    ("the notch a row’s pin chose", "code<sub>i</sub>: one UInt16 a slice, sixteen a partition"),
+    ("the gap from the query’s pin to a notch", "table[i][j] = ‖q<sub>i</sub> − c<sub>ij</sub>‖, cut once per query, per document"),
+    ("a row’s sixteen gaps, added", "d(q, p) = Σ<sub>i</sub> table[i][code<sub>i</sub>]"),
+    ("the rows that sit closest", "the best 3 partitions, kept if under the threshold"),
+]
+PARTITION_CSS = f"""<style>
+.board {{ display: inline-block; margin-left: 14px; transform: translateY(-4px); font-family: {MONO}; font-style: normal; font-size: 11px; color: {GOLD}; border: 1px solid rgba(199,166,89,.4); border-radius: 12px; padding: 2px 10px; white-space: nowrap; }}
+.map .mrow {{ display: grid; grid-template-columns: 340px 1fr; column-gap: 20px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.07); font-size: 16px; color: #dcdad3; }}
+.map .mrow span:last-child {{ font-family: {MONO}; font-style: normal; font-size: 13px; color: #c3c0b7; }}
+.map .mhead span {{ font-family: "Playfair", Georgia, serif !important; font-style: italic !important; font-size: 11.5px !important; letter-spacing: .22em; text-transform: uppercase; color: #77756f !important; }}
+.why p b {{ font-weight: 400; color: #ecebe5; }}
+</style>"""
+
+
+def partition_window(top, height, body):
+    """One stretch of the partition index's long page, shown from y = 372 down."""
+    return (PARTITION_CSS + f'<div style="position:absolute; left:0; top:372px; width:{W}px; height:{height}px; overflow:hidden">'
+            f'<div style="position:absolute; left:0; top:{-top}px; width:{W}px; height:2400px">{body}</div></div>')
+
+
+def partition_index_filing():
+    return plate("partition-index-1.png", 1666, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE PARTITION INDEX · I OF II",
+                 "Filing a document", "its paragraphs become codes, against notches learned from them all",
+                 partition_window(372, 1214, partition_index_body()),
+                 "read with pin-board.png; the codes are illustrative, the shapes, sizes and rules are the code’s")
+
+
+def partition_index_search():
+    return plate("partition-index-2.png", 1210, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE PARTITION INDEX · II OF II",
+                 "Searching a document", "a query becomes a ruler per column, and every paragraph is read in sixteen lookups",
+                 partition_window(1602, 760, partition_index_body()),
+                 "read with pin-board.png; the distances are illustrative, the rules are the code’s")
 
 
 # MARK: The first index (Seer, with HNSW)
@@ -1139,7 +1197,523 @@ def credibility():
                  body, "the posts, accounts and shares are illustrative; the firehose, spans and royalties are Seer’s")
 
 
-ALL = ["sewn_thread_seam", "thread_inside", "partition_index", "first_index", "lineage", "credibility"]
+# MARK: Many threads (the split)
+
+# From riteshpakala/Seer: Linux builds (2026-02-06 → 02-21), Oracle peers (03-03 → 03-05), the split into
+# Totem (05-23) and gRPC between them (05-24). Totem is today's Thread; Seer is today's Sewn (2026-09-07).
+SPLIT = [
+    ("2026-02", "Linux", "Sewn builds on Ubuntu, with MLX"),
+    ("2026-03", "peers", "Sewn servers connect to each other"),
+    ("2026-05-23", "the split", "the database leaves as Thread"),
+    ("2026-05-24", "gRPC", "Sewn and Thread talk over the wire"),
+    ("2026-09 · AII", "AII", "the two halves, one index"),
+]
+
+
+def box(x, y, w, h, title, lines, colour=None, dashed=False, machine=""):
+    dot = f'<i class="dot" style="background:{colour}"></i>' if colour else ""
+    style = "border-style:dashed;" if dashed else ""
+    rows = "".join(f"<span>{line}</span>" for line in lines)
+    tag = f'<em>{machine}</em>' if machine else ""
+    return f'<div class="bx" style="left:{x}px; top:{y}px; width:{w}px; height:{h}px; {style}"><b>{dot}{title}</b>{tag}{rows}</div>'
+
+
+def threads():
+    s, labels = [], []
+    axis = lambda x, y, text, colour="#77756f": labels.append(wire(x, y, text, colour))
+    ty = 372
+    s.append(f'<line x1="96" y1="{ty}" x2="1504" y2="{ty}" stroke="#4a4944" stroke-width="1.4"/>')
+    step_x = (1504 - 96) / (len(SPLIT) - 1)
+    for n, (when, name, text) in enumerate(SPLIT):
+        x = 96 + n * step_x
+        s.append(f'<circle cx="{x}" cy="{ty}" r="6" fill="#191917" stroke="{GOLD}" stroke-width="2"/>')
+        align = "left" if n == 0 else "right" if n == len(SPLIT) - 1 else "center"
+        shift = 0 if n == 0 else -250 if n == len(SPLIT) - 1 else -125
+        labels.append(f'<div class="tl" style="left:{x + shift}px; top:{ty + 14}px; text-align:{align}"><code>{when}</code><b>{name}</b><span>{text}</span></div>')
+
+    # ① The split.
+    s.append(reply(380, 448, 640, DIAL, width=1.6))
+    s.append(f'<path d="M462,640 L478,640 M478,588 L478,692" fill="none" stroke="#6d6b64" stroke-width="1.4"/>')
+    s.append(reply(478, 506, 588, DIAL, width=1.4))
+    s.append(reply(478, 506, 692, DIAL, width=1.4))
+    one = box(96, 548, 278, 184, "Sewn", ["the REST API", "the LLM providers", "retrieval and the personal layer", "the index, the graph, the registry"], LINE, machine="ONE SERVER")
+    service = box(514, 528, 250, 120, "Sewn", ["REST, the LLM APIs,", "and retrieval, prepared"], LINE, machine="THE SERVICE")
+    data = box(514, 652, 250, 110, "Thread", ["the index, the graph,", "the registry: the data"], VIOLET, machine="THE DATABASE")
+
+    # ② The proof, on a home network.
+    s.append(reply(1110, 1180, 600, GOLD, width=1.8))
+    s.append(reply(1180, 1110, 640, VIOLET, width=1.8))
+    axis(1112, 578, "Search", GOLD)
+    axis(1112, 646, "hits", VIOLET)
+    axis(1106, 680, "gRPC · the LAN")
+    desk = box(830, 528, 272, 220, "a desktop on Ubuntu", ["Swift on Linux, MLX on device", "an embedding model; an LLM to summarize", "a Thread holding arXiv:", "authors and entities, filed as groups"], VIOLET)
+    mac = box(1188, 528, 318, 220, "Sewn", ["answers the front end", "asks the Thread for every turn’s context", "the first time the data lived on another machine"], LINE)
+
+    # ③ Many threads, sewn.
+    cx, cy = 560, 1110
+    owners = [("yours", BLUE), ("theirs", GREEN), ("a lab’s", ORANGE), ("a feed’s", "#8b8a84"), ("arXiv", VIOLET)]
+    for i, (name, colour) in enumerate(owners):
+        tx, ty2 = 160 + i * 200, 920
+        s.append(f'<path d="M{tx},{ty2 + 14} C{tx},{ty2 + 110} {cx},{cy - 90} {cx},{cy - 18}" fill="none" stroke="{colour}" stroke-width="2.4" opacity=".85"/>')
+        s.append(f'<circle cx="{tx}" cy="{ty2}" r="13" fill="#191917" stroke="{colour}" stroke-width="2.2"/>')
+        labels.append(f'<div class="node" style="left:{tx - 60}px; top:{ty2 - 52}px; color:{colour}">{name}<br><span>a Thread</span></div>')
+    s.append(f'<circle cx="{cx}" cy="{cy}" r="17" fill="#191917" stroke="{GOLD}" stroke-width="2.4"/><circle cx="{cx}" cy="{cy}" r="6" fill="{GOLD}"/>')
+    s.append(f'<line x1="{cx}" y1="{cy + 18}" x2="{cx}" y2="{cy + 54}" stroke="{LINE}" stroke-width="3" stroke-linecap="round"/>')
+    labels.append(f'<div class="node" style="left:{cx + 28}px; top:{cy - 16}px; width:260px; color:{GOLD}; text-align:left">the mothership<br><span>Sewn, sewing the threads together</span></div>')
+    labels.append(f'<div class="node" style="left:{cx - 60}px; top:{cy + 58}px; color:#ecebe5">Ambient<br><span>one interface</span></div>')
+
+    body = f"""<style>
+.tl {{ position: absolute; width: 250px; }}
+.tl code {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #77756f; }}
+.tl b {{ display: block; font-weight: 400; font-size: 20px; color: #ecebe5; margin-top: 2px; }}
+.tl span {{ display: block; font-size: 14.5px; color: #a29f97; margin-top: 2px; white-space: nowrap; }}
+.bx {{ position: absolute; box-sizing: border-box; border: 1px solid rgba(255,255,255,.11); border-radius: 11px; padding: 11px 14px; background: rgba(255,255,255,.02); }}
+.bx b {{ display: block; font-weight: 400; font-size: 20px; color: #ecebe5; }}
+.bx em {{ display: block; font-style: normal; font-size: 10.5px; letter-spacing: .2em; color: #77756f; margin: 2px 0 4px; }}
+.bx span {{ display: block; font-size: 15px; line-height: 1.32; color: #a29f97; }}
+.dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; transform: translateY(-2px); }}
+.node {{ position: absolute; width: 120px; text-align: center; font-size: 17px; line-height: 1.15; }}
+.node span {{ font-size: 13.5px; color: #8b8a84; }}
+.quote {{ position: absolute; font-size: 30px; line-height: 1.25; color: #dcdad3; }}
+.cap {{ position: absolute; font-size: 16px; line-height: 1.36; color: #a29f97; }}
+.cap b {{ font-weight: 400; color: #ecebe5; }}
+</style>
+{card(70, 470, 720, 300, head(step(1) + "Divide and conquer", GOLD, "ONE SERVER, TWO PRODUCTS"))}
+{one}{service}{data}
+{card(810, 470, 720, 300, head(step(2) + "The proof, on a home network", GOLD, "THREAD ON UBUNTU"))}
+{desk}{mac}
+{card(70, 794, 1460, 500, head(step(3) + "Many threads, one seam", GOLD, "THE IDEA IT PROVED"))}
+<div class="quote" style="left:1110px; top:860px; width:390px">“Decentralized intelligence centralizes progress for the whole.”</div>
+<div class="cap" style="left:1110px; top:1020px; width:390px">One stone, many birds. <b>Each person hosts a Thread with their own data</b>, and a mothership sews them together for one interface. Attribution comes from retrieval, and ownership from where the data lives.</div>
+<div class="cap" style="left:96px; top:1232px; width:960px">A Thread dials the mothership and holds its session open; the mothership never needs to reach in. That is still how Sewn reaches Thread on every Mac today.</div>
+<svg width="{W}" height="1460">{"".join(s)}</svg>
+{"".join(labels)}"""
+    return plate("threads.png", 1360, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE SPLIT",
+                 "Many threads", "the database left the server, and a home network proved people could host their own",
+                 body, "from riteshpakala/Seer, 2026-02 to 2026-05, named as they are today")
+
+
+# MARK: Narrowing the field (Thread today)
+
+# PartitionTable.search: the lane and the owner's groups give the candidates, the graph gates them (a
+# tag is a concept entity), a PQ scan ranks the best 3 of each, one hop adds neighbours, and one
+# ranking cuts at top_k. The counts are illustrative.
+FUNNEL = [
+    ("your lane", "1,000,000 partitions · 40,000 documents", "the secret picks it", "registry"),
+    ("your groups", "3,000 documents", "the owner, and the groups you named", "registry"),
+    ("the graph", "120 documents", "linked to the entities, relationships and tags you named", "graph"),
+    ("the vectors", "360 partitions", "a PQ scan: the best 3 of each document", "vectors"),
+    ("one ranking", "8 partitions", "one hop of neighbours, then cut at top_k", "graph"),
+]
+
+
+def funnel():
+    s, labels = [], []
+    cx, top, h, gap = 450, 442, 50, 14
+    widths = [700, 560, 420, 290, 170]
+    for n, ((name, count, text, store_name), w) in enumerate(zip(FUNNEL, widths)):
+        y = top + n * (h + gap)
+        colour = STORE[store_name]
+        s.append(f'<rect x="{cx - w / 2}" y="{y}" width="{w}" height="{h}" rx="9" fill="{colour}" fill-opacity=".14" stroke="{colour}" stroke-opacity=".55"/>')
+        labels.append(f'<div class="fcount" style="left:{cx - w / 2}px; top:{y + 13}px; width:{w}px">{count}</div>')
+        labels.append(f'<div class="fname" style="left:840px; top:{y + 4}px"><b>{name}</b>{store(store_name)}<span>{text}</span></div>')
+    end = top + 5 * (h + gap) - gap
+    s.append(f'<path d="M{cx},{end + 4} L{cx},{end + 22} M{cx - 190},{end + 22} L{cx + 190},{end + 22} M{cx - 190},{end + 22} L{cx - 190},{end + 38} M{cx + 190},{end + 22} L{cx + 190},{end + 38}" fill="none" stroke="#77756f" stroke-width="1.4"/>')
+    s.append(arrowhead(cx - 190, end + 40, "down", "#77756f") + arrowhead(cx + 190, end + 40, "down", "#77756f"))
+    outcomes = (f'<div class="out" style="left:{cx - 330}px; top:{end + 48}px"><b>context, for a request</b>'
+                f'<span>Sewn frames the passages as “you wrote”, and the answer is personal</span></div>'
+                f'<div class="out" style="left:{cx + 50}px; top:{end + 48}px"><b>recall, as memory</b>'
+                f'<span>Ambient brings back a note from March that matters again today</span></div>')
+
+    body = f"""<style>
+.fcount {{ position: absolute; text-align: center; font-family: {MONO}; font-style: normal; font-size: 13.5px; color: #ecebe5; }}
+.fname {{ position: absolute; width: 660px; display: grid; grid-template-columns: 150px auto 1fr; column-gap: 12px; align-items: baseline; }}
+.fname b {{ font-weight: 400; font-size: 20px; color: #ecebe5; }}
+.fname > span:last-child {{ font-size: 16px; color: #a29f97; }}
+.store {{ font-family: {MONO}; font-style: normal; font-size: 10.5px; border: 1px solid; border-radius: 4px; padding: 1px 6px; }}
+.out {{ position: absolute; width: 280px; box-sizing: border-box; border: 1px solid rgba(199,166,89,.45); border-radius: 10px; padding: 10px 14px; }}
+.out b {{ display: block; font-weight: 400; font-size: 18px; color: #ecebe5; }}
+.out span {{ display: block; font-size: 15px; line-height: 1.3; color: #a29f97; margin-top: 3px; }}
+.pts p {{ margin: 10px 0 0; font-size: 16px; line-height: 1.36; color: #a29f97; }}
+.pts p b {{ font-weight: 400; color: #ecebe5; }}
+.pair {{ display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; margin-top: 4px; }}
+.pair > div {{ border: 1px solid rgba(255,255,255,.09); border-radius: 10px; padding: 11px 14px; }}
+.pair b {{ display: block; font-weight: 400; font-size: 19px; color: #ecebe5; }}
+.pair code {{ font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #8b8a84; }}
+.pair span {{ display: block; font-size: 15px; line-height: 1.32; color: #a29f97; margin-top: 4px; }}
+</style>
+{card(70, 374, 1460, 520, head(step(1) + "From millions to a handful", GOLD, "THREADQUERY.SEARCH"))}
+{outcomes}
+<svg width="{W}" height="1400">{"".join(s)}</svg>
+{card(70, 918, 720, 196, head(step(2) + "Two ways to ask", GOLD, "SAME INDEX"))}
+<div class="label pair" style="left:96px; top:972px; width:670px">
+  <div><b>similar</b><code>ThreadQuery.Search</code><span>a query against the partitions, ranked by distance: what reads alike</span></div>
+  <div><b>related</b><code>ThreadGraph.Query</code><span>entities and relationships matched, then walked: the same graph gives the same answer</span></div>
+</div>
+{card(810, 918, 720, 196, head(step(3) + "Groups and tags", GOLD, "TWO WAYS TO NARROW"))}
+<div class="label pair" style="left:836px; top:972px; width:670px">
+  <div><b>a group</b><code>group_ids</code><span>a folder: each document sits in one, and a search can name which to look in</span></div>
+  <div><b>a tag</b><code>tags → concept entities</code><span>a label: a document can carry many, each filed in the graph, so naming it finds the document</span></div>
+</div>
+{"".join(labels)}"""
+    return plate("funnel.png", 1180, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THREAD TODAY",
+                 "Narrowing the field", "the graph decides where to look, the vectors decide what reads alike",
+                 body, "the counts are illustrative; the order is PartitionTable.search’s")
+
+
+# MARK: The pin board (the partition index, by analogy)
+
+PIN_COLS, PIN_ROWS = 16, 8
+PIN_DX, PIN_DY, SKEW, ZX, ZY = 33, 40, 7, 5.5, 7     # the board's grid, and how far a notch pushes a pin out
+
+
+def pin_at(bx, by, i, r, z):
+    return bx + i * PIN_DX + r * SKEW + z * ZX, by + r * PIN_DY - z * ZY
+
+
+def pin_board(bx, by, depths, mark_row=1, mark_col=15):
+    """A pin-art board: a row per partition, a column per slice, each pin at its notch."""
+    out = []
+    w = PIN_COLS * PIN_DX + PIN_ROWS * SKEW
+    # The back plate and its shadow, then the guides of the marked row and column.
+    out.append(f'<rect x="{bx - 46}" y="{by - 40}" width="{w + 70}" height="{PIN_ROWS * PIN_DY + 50}" rx="14" fill="#0d0d0c" stroke="#2c2b28"/>')
+    for r in range(PIN_ROWS):
+        for i in range(PIN_COLS):
+            z = depths[r][i]
+            x0, y0 = pin_at(bx, by, i, r, 0)
+            x1, y1 = pin_at(bx, by, i, r, z)
+            out.append(f'<line x1="{x0:.1f}" y1="{y0:.1f}" x2="{x1:.1f}" y2="{y1:.1f}" stroke="#6d6f74" stroke-width="2.2" stroke-linecap="round"/>')
+            ring = (f' stroke="{GOLD}" stroke-width="1.6"' if r == mark_row else
+                    f' stroke="{BLUE}" stroke-width="1.6"' if i == mark_col else "")
+            out.append(f'<circle cx="{x1:.1f}" cy="{y1:.1f}" r="9.5" fill="url(#pinhead)"{ring}/>')
+    # The clear front plate, its corner posts.
+    out.append(f'<rect x="{bx - 30}" y="{by - 64}" width="{w + 70}" height="{PIN_ROWS * PIN_DY + 58}" rx="12" fill="rgba(255,255,255,.035)" stroke="rgba(255,255,255,.22)" stroke-width="1.4"/>')
+    for px, py in ((bx - 30, by - 64), (bx + w + 40, by - 64), (bx - 30, by - 6 + PIN_ROWS * PIN_DY), (bx + w + 40, by - 6 + PIN_ROWS * PIN_DY)):
+        out.append(f'<circle cx="{px + (14 if px < bx else -14)}" cy="{py + (14 if py < by else -14)}" r="11" fill="#0d0d0c" stroke="#3a3936" stroke-width="2"/>'
+                   f'<circle cx="{px + (14 if px < bx else -14)}" cy="{py + (14 if py < by else -14)}" r="4" fill="#262522"/>')
+    return "".join(out)
+
+
+def pins():
+    rng = random.Random(9)
+    # A document's relief: neighbouring paragraphs press alike, so the board shows a shape.
+    depths = [[max(1, min(4, round(2.5 + 1.4 * math.sin(i / 2.6 + r / 1.7) + rng.uniform(-.6, .6)))) for i in range(PIN_COLS)]
+              for r in range(PIN_ROWS)]
+    query = [max(1, min(4, d + (1 if rng.random() < .2 else 0))) for d in depths[1]]
+    bx, by = 196, 620
+    s = [f'<defs><radialGradient id="pinhead" cx="35%" cy="32%" r="70%"><stop offset="0" stop-color="#f6f7f9"/>'
+         f'<stop offset=".45" stop-color="#b9bcc3"/><stop offset="1" stop-color="#4b4d52"/></radialGradient></defs>']
+    s.append(pin_board(bx, by, depths))
+
+    # The query: a row of pins held up against every row of the board.
+    qx, qy = bx, 474
+    for i, z in enumerate(query):
+        x, y = pin_at(qx, qy, i, 0, z)
+        x0, y0 = pin_at(qx, qy, i, 0, 0)
+        s.append(f'<line x1="{x0:.1f}" y1="{y0:.1f}" x2="{x:.1f}" y2="{y:.1f}" stroke="{GOLD}" stroke-width="2" opacity=".7"/>')
+        s.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="8.5" fill="#191917" stroke="{GOLD}" stroke-width="2"/>')
+    for i in (2, 8, 14):
+        x, _ = pin_at(qx, qy, i, 0, 0)
+        s.append(f'<line x1="{x + 4}" y1="{qy + 14}" x2="{x + 4}" y2="{by - 66}" stroke="{GOLD}" stroke-width="1.4" stroke-dasharray="4 4"/>')
+        s.append(arrowhead(x + 4, by - 66, "down", GOLD))
+
+    # Leaders to the labels.
+    labels = []
+    def leader(px, py, ly, title, text, colour=LINE):
+        s.append(f'<path d="M{px:.1f},{py:.1f} L800,{ly + 12} L836,{ly + 12}" fill="none" stroke="{colour}" stroke-width="1.1" opacity=".75"/>')
+        s.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3" fill="{colour}"/>')
+        labels.append(f'<div class="lbl" style="left:846px; top:{ly}px"><b style="color:{colour}">{title}</b><span>{text}</span></div>')
+
+    qx15, qy15 = pin_at(qx, qy, 15, 0, query[15])
+    leader(qx15 + 12, qy15, 452, "the query", "pressed the same way, then held up against every row", GOLD)
+    rx, ry = pin_at(bx, by, 15, 1, depths[1][15])
+    leader(rx + 12, ry, 548, "a row: one partition", "a paragraph of the document, pressed into sixteen pins", GOLD)
+    cx, cy = pin_at(bx, by, 15, 4, depths[4][15])
+    leader(cx + 12, cy, 644, "a column: one slice", "64 of the vector’s 1,024 numbers, the same 64 in every row", BLUE)
+    labels.append(f'<div class="lbl" style="left:846px; top:732px; width:420px"><b style="color:{LINE}">a pin’s depth: the notch it chose</b><span>the notch’s number is all a row keeps. Hold the query’s pin beside it, and the gap between them is that column’s distance</span></div>')
+    # One column in profile: the row's pin in its notch, the query's pin beside it, and the gap.
+    ix, iy = 1316, 760
+    s.append(f'<rect x="{ix}" y="{iy - 18}" width="10" height="58" rx="3" fill="#0d0d0c" stroke="#3a3936"/>')
+    for n in range(4):
+        tx = ix + 40 + n * 38
+        s.append(f'<line x1="{tx}" y1="{iy - 7}" x2="{tx}" y2="{iy + 7}" stroke="#8b8a84" stroke-width="1.4"/>')
+        s.append(f'<text x="{tx}" y="{iy - 12}" text-anchor="middle" font-family="{MONO}" font-size="10.5" fill="{LINE if n == 1 else "#77756f"}">{n}</text>')
+    s.append(f'<line x1="{ix + 10}" y1="{iy}" x2="{ix + 40 + 38}" y2="{iy}" stroke="#6d6f74" stroke-width="2.4"/>')
+    s.append(f'<circle cx="{ix + 40 + 38}" cy="{iy}" r="9.5" fill="url(#pinhead)"/>')
+    qx2 = ix + 40 + 2.7 * 38
+    s.append(f'<line x1="{ix + 10}" y1="{iy + 24}" x2="{qx2:.1f}" y2="{iy + 24}" stroke="{GOLD}" stroke-width="2" opacity=".7"/>')
+    s.append(f'<circle cx="{qx2:.1f}" cy="{iy + 24}" r="8.5" fill="#191917" stroke="{GOLD}" stroke-width="2"/>')
+    s.append(f'<path d="M{ix + 40 + 38},{iy + 44} L{ix + 40 + 38},{iy + 50} L{qx2:.1f},{iy + 50} L{qx2:.1f},{iy + 44}" fill="none" stroke="{GOLD}" stroke-width="1.4"/>')
+    s.append(f'<text x="{(ix + 78 + qx2) / 2:.1f}" y="{iy + 66}" text-anchor="middle" font-family="{MONO}" font-size="11" fill="{GOLD}">the gap: this column’s reading</text>')
+    s.append(f'<text x="{ix + 92}" y="{iy + 4}" font-family="{MONO}" font-size="10" fill="#8b8a84">row</text>')
+    s.append(f'<text x="{qx2 + 14:.1f}" y="{iy + 28}" font-family="{MONO}" font-size="10" fill="{GOLD}">query</text>')
+    fx, fy = bx + PIN_COLS * PIN_DX + PIN_ROWS * SKEW + 30, by + PIN_ROWS * PIN_DY - 30
+    leader(fx, fy, 836, "the board: the document’s index", "every paragraph’s pins, in memory; its notches learned from them all", "#8b8a84")
+
+    body = f"""<style>
+.lbl {{ position: absolute; width: 660px; }}
+.lbl b {{ display: block; font-weight: 400; font-size: 21px; }}
+.lbl span {{ display: block; font-size: 16px; line-height: 1.3; color: #a29f97; margin-top: 2px; }}
+.pts p {{ margin: 10px 0 0; font-size: 16px; line-height: 1.36; color: #a29f97; }}
+.pts p b {{ font-weight: 400; color: #ecebe5; }}
+.note {{ position: absolute; font-size: 17px; line-height: 1.38; color: #a29f97; }}
+.note b {{ font-weight: 400; color: #ecebe5; }}
+</style>
+{card(70, 372, 1460, 600, "")}
+<svg width="{W}" height="1500">{"".join(s)}</svg>
+{"".join(labels)}
+{card(70, 996, 473, 176, head(step(1) + "Press", GOLD, "FILING"))}
+<div class="label pts" style="left:94px; top:1046px; width:425px">
+  <p>A paragraph’s vector pushes its row of pins out. <b>Each pin settles in the nearest notch</b>, so the row keeps the shape in sixteen small numbers and lets the vector go.</p>
+</div>
+{card(563, 996, 473, 176, head(step(2) + "The notches", GOLD, "THE CODEBOOKS"))}
+<div class="label pts" style="left:587px; top:1046px; width:425px">
+  <p>Each column’s notches are cut from <b>this document’s own paragraphs</b>, where their pins tend to land. A new document gets its own board, with notches of its own.</p>
+</div>
+{card(1056, 996, 474, 176, head(step(3) + "Hold it up", GOLD, "SEARCH"))}
+<div class="label pts" style="left:1080px; top:1046px; width:426px">
+  <p>Press the query, then measure, once per column, how far each notch sits from the query’s pin: <b>a ruler per column, the table</b>. A row’s distance is its sixteen gaps, added; the smallest is the closest paragraph.</p>
+</div>
+<div class="note" style="left:70px; top:1198px; width:1460px"><b>Faster</b>, because a row is read in sixteen glances at a ruler cut once, not measured against the query’s 1,024 numbers; and the whole board fits in memory. <b>Still right</b>, because paragraphs that press alike land in the same notches: what is near stays near. One honest caveat: a real notch is a place in 64 dimensions, not a mark on a line, so notch 2 is not “between” 1 and 3. That is why the ruler measures the query to every notch, rather than subtracting notch numbers.</div>"""
+    return plate("pin-board.png", 1350, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE PARTITION INDEX, BY HAND",
+                 "A pin board", "a document pressed into pins: each paragraph keeps its shape, not its vector",
+                 body, "an analogy for partition-index.png: 16 pins a row, k notches a pin, one board per document")
+
+
+# MARK: Training the notches (PartitionQuantizer.train, and a query's way in)
+
+# PartitionQuantizer: k = the largest power of two at most n / 39, within 2…65,536; fewer vectors than k
+# and the vectors are the notches; k-means++ seeding, at most 20 rounds, stopping when no centroid moves
+# more than 0.001; an empty notch is reseeded; codes and errors from the same pass; a threshold of
+# mean + 1.5σ, at least 8.0. A query is embedded with the query role, must match the stamped embedder and
+# the codebook's width, and is never quantized: it meets the notches at full precision.
+TRAIN_STEPS = [
+    ("embed", "voyage-4-nano, document role: one 1024-d vector a paragraph", "model"),
+    ("size k", "the largest power of two at most n ÷ 39, from 2 to 65,536; fewer paragraphs than k, and they are the notches", ""),
+    ("seed", "k-means++: the first notch at random, each next where pins sit farthest from any", ""),
+    ("settle", "each pin to its nearest notch, each notch to its pins’ mean; at most 20 rounds, still at 0.001", ""),
+    ("press", "the codes come out of the same pass: sixteen a paragraph, and each one’s error back to its notches", "vectors"),
+    ("threshold", "mean + 1.5σ of those errors, and never under 8.0: the board’s own sense of near", ""),
+]
+QUERY_FLOW = [("“who leads Joltvault?”", ""), ("voyage-4-nano", "query role"), ("the same model", "stamp checked"),
+              ("1,024 numbers", "never pressed"), ("sixteen slices", "the same cuts"), ("this board’s notches", "a ruler each")]
+WHY_OWN = [
+    ("Notches that fit", "a document’s paragraphs share a voice, so a few notches hold them: k is 2 to 64 for today’s documents."),
+    ("Nothing shared", "a board is cut only from its own document; no one’s paragraphs shape another’s notches, in any lane."),
+    ("Forgetting is clean", "removing a document drops its board, notches and all; nothing of it lingers in a shared structure."),
+    ("No warm-up, no drift", "it works from the first document, and filing one never retrains another: no stale global notches."),
+    ("Its own sense of near", "each board’s threshold comes from its own errors, tight for a focused note, loose for a sprawling one."),
+    ("The price", "each board carries its own notches, 16 × k × 64 floats, and a query cuts a ruler per candidate board: so the graph narrows first."),
+]
+
+
+def settle_frames(rng):
+    """One column's pins and its notches after seeding, two rounds, and at rest: real k-means, in one depth."""
+    centres = [0.15, 0.42, 0.66, 0.88]
+    pins = sorted(min(.98, max(.02, centres[i % 4] + rng.gauss(0, .05))) for i in range(18))
+    notches = [pins[1]]                                    # k-means++: the first at random, each next by D²
+    while len(notches) < 4:
+        d2 = [min((p - c) ** 2 for c in notches) for p in pins]
+        target, acc = rng.random() * sum(d2), 0.0
+        for p, w in zip(pins, d2):
+            acc += w
+            if acc >= target:
+                notches.append(p)
+                break
+    frames = [("seeded", list(notches))]
+    for round_ in range(1, 20):
+        groups = [[] for _ in notches]
+        for p in pins:
+            groups[min(range(4), key=lambda j: abs(notches[j] - p))].append(p)
+        moved = [sum(g) / len(g) if g else notches[j] for j, g in enumerate(groups)]
+        shift = max(abs(a - b) for a, b in zip(moved, notches))
+        notches = moved
+        if round_ in (1, 2):
+            frames.append((f"round {round_}", list(notches)))
+        if shift < 0.001:
+            break
+    frames.append((f"still, after {round_}", notches))
+    return pins, frames
+
+
+def training():
+    rng = random.Random(514)                    # a run that moves visibly and settles one notch to a bunch
+    s, labels = [], []
+
+    # ① The regime: six stages, and one column settling beneath them.
+    steps_html = ""
+    for n, (name, text, store_name) in enumerate(TRAIN_STEPS):
+        x = 96 + n * 238
+        chip = store(store_name) if store_name else ""
+        steps_html += f'<div class="tstep" style="left:{x}px; top:430px"><h5><span class="step">{n + 1}</span>{name}</h5><p>{text}</p><div class="stores">{chip}</div></div>'
+        if n < len(TRAIN_STEPS) - 1:
+            s.append(reply(x + 220, x + 234, 505, DIAL, width=1.3))
+    pins, frames = settle_frames(rng)
+    fy, fh, fw = 660, 118, 330
+    jitter = [rng.uniform(-7, 7) for _ in pins]
+    previous = None
+    for f, (name, notches) in enumerate(frames):
+        fx = 96 + f * (fw + 29)
+        X = lambda d: fx + 18 + d * (fw - 36)
+        s.append(f'<rect x="{fx}" y="{fy}" width="{fw}" height="{fh}" rx="10" fill="rgba(0,0,0,.14)" stroke="rgba(255,255,255,.07)"/>')
+        base = fy + 62
+        s.append(f'<line x1="{fx + 14}" y1="{base}" x2="{fx + fw - 14}" y2="{base}" stroke="#3a3936" stroke-width="1"/>')
+        if previous:
+            for old, new_ in zip(previous, notches):
+                if abs(X(old) - X(new_)) > 3:
+                    s.append(f'<line x1="{X(old):.1f}" y1="{fy + 26}" x2="{X(old):.1f}" y2="{fy + 92}" stroke="{GOLD}" stroke-width="1.2" stroke-dasharray="2 4" opacity=".35"/>')
+                    s.append(f'<line x1="{X(old):.1f}" y1="{fy + 20}" x2="{X(new_) + (-5 if new_ > old else 5):.1f}" y2="{fy + 20}" stroke="{GOLD}" stroke-width="1.2" opacity=".8"/>')
+                    s.append(arrowhead(X(new_) + (-5 if new_ > old else 5), fy + 20, "right" if new_ > old else "left", GOLD))
+        for c in notches:
+            s.append(f'<line x1="{X(c):.1f}" y1="{fy + 30}" x2="{X(c):.1f}" y2="{fy + 92}" stroke="{GOLD}" stroke-width="1.8"/>')
+        for p, jy in zip(pins, jitter):
+            s.append(f'<circle cx="{X(p):.1f}" cy="{base + jy:.1f}" r="3.6" fill="#9a9ca1"/>')
+        labels.append(wire(fx + 14, fy + fh - 20, name, GOLD if f == len(frames) - 1 else "#8b8a84"))
+        if f < len(frames) - 1:
+            s.append(reply(fx + fw + 4, fx + fw + 25, fy + fh / 2, DIAL, width=1.3))
+        previous = notches
+    labels.append(wire(96, fy - 24, "one column, settling: the same pins in every frame; the gold notches move to where the pins bunch, then stop", "#77756f"))
+
+    # ② A query's way in.
+    flow = ""
+    for n, (name, note) in enumerate(QUERY_FLOW):
+        x = 96 + n * 236
+        flow += f'<div class="qstep" style="left:{x}px; top:932px"><b>{name}</b><span>{note}</span></div>'
+        if n < len(QUERY_FLOW) - 1:
+            s.append(reply(x + 214, x + 232, 958, GOLD, width=1.4))
+
+    tiles = "".join(f'<div class="why2"><b>{t}</b><span>{d}</span></div>' for t, d in WHY_OWN)
+    body = f"""<style>
+.tstep {{ position: absolute; width: 220px; height: 150px; box-sizing: border-box; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; padding: 10px 12px; background: rgba(255,255,255,.02); }}
+.tstep h5 {{ margin: 0; font-weight: 400; font-size: 18px; color: #e3e1da; display: flex; align-items: center; }}
+.tstep p {{ margin: 6px 0 0; font-size: 14px; line-height: 1.3; color: #a29f97; }}
+.stores {{ position: absolute; left: 12px; bottom: 9px; display: flex; gap: 5px; }}
+.store {{ font-family: {MONO}; font-style: normal; font-size: 10.5px; border: 1px solid; border-radius: 4px; padding: 1px 6px; }}
+.qstep {{ position: absolute; width: 214px; height: 54px; box-sizing: border-box; border: 1px solid rgba(199,166,89,.35); border-radius: 10px; padding: 7px 12px; }}
+.qstep b {{ display: block; font-weight: 400; font-size: 16.5px; color: #ecebe5; white-space: nowrap; }}
+.qstep span {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11px; color: #8b8a84; margin-top: 2px; }}
+.cap {{ position: absolute; font-size: 16px; line-height: 1.36; color: #a29f97; }}
+.cap b {{ font-weight: 400; color: #ecebe5; }}
+.whys {{ position: absolute; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }}
+.why2 {{ border: 1px solid rgba(255,255,255,.09); border-radius: 10px; padding: 11px 14px; }}
+.why2 b {{ display: block; font-weight: 400; font-size: 19px; color: #ecebe5; }}
+.why2 span {{ display: block; font-size: 15px; line-height: 1.32; color: #a29f97; margin-top: 4px; }}
+.board {{ display: inline-block; margin-left: 14px; transform: translateY(-4px); font-family: {MONO}; font-style: normal; font-size: 11px; color: {GOLD}; border: 1px solid rgba(199,166,89,.4); border-radius: 12px; padding: 2px 10px; white-space: nowrap; }}
+</style>
+{card(70, 372, 1460, 448, head(step(1) + "The training regime" + board("cutting the notches"), GOLD, "ONCE, WHEN A DOCUMENT IS FILED"))}
+{steps_html}
+{card(70, 844, 1460, 254, head(step(2) + "A query, translated" + board("holding the query up"), GOLD, "EVERY SEARCH"))}
+{flow}
+<div class="cap" style="left:96px; top:1006px; width:1408px"><b>The query is never pressed.</b> It is embedded by the same model the board was built from, with the query role, so a question lands where its answers sit; then it is cut at the same sixteen places and measured, at full precision, against this board’s notches. Only the stored paragraphs are approximate. A query from another model is refused, and one of another width scores nothing.</div>
+{card(70, 1122, 1460, 300, head(step(3) + "Why each document trains its own" + board("one board per document"), GOLD, "THE PARTITION INDEX"))}
+<div class="label whys" style="left:96px; top:1178px; width:1408px">{tiles}</div>
+<svg width="{W}" height="1600">{"".join(s)}</svg>
+{"".join(labels)}"""
+    return plate("training.png", 1500, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE PARTITION INDEX · TRAINING",
+                 "Training the notches", "each document cuts its own, and a query is measured against them as it is",
+                 body, "the frames are a real k-means run on illustrative pins; the rules are PartitionQuantizer’s")
+
+
+# MARK: One impossible table (why lookup tables)
+
+# The idea in PartitionQuantizer's first lines, then (Seer, 2025-11-13) and now. Seer's history: LSH bucketing
+# (2025-11-01), the first quantizer (11-13), LSH removed for one index per document (11-15), codebooks that
+# scale with the document (2026-03-07), 1024 dimensions in 16 slices (03-11).
+LUT_HISTORY = [
+    ("2025-11-01", "buckets", "a vector hashed to a bucket; search looked in its own"),
+    ("2025-11-13", "small tables", "384 numbers in 8 slices: the first quantizer"),
+    ("2025-11-15", "one per document", "buckets removed; each document its own index"),
+    ("2026-03-07", "tables that grow", "k scales with the document: n ÷ 39"),
+    ("2026-03-11", "1,024 in 16", "today’s cut: sixteen slices of 64"),
+]
+
+
+def lut():
+    s, labels = [], []
+    # ② The impossible table, and sixteen small ones.
+    gx, gy = 836, 742
+    for r in range(9):                                   # one table, a row per possible vector, fading out
+        op = max(.05, 1 - r * .11)
+        s.append(f'<rect x="{gx}" y="{gy + r * 20}" width="300" height="16" rx="3" fill="rgba(255,255,255,{.06 * op:.3f})" stroke="rgba(255,255,255,{.18 * op:.3f})"/>')
+    s.append(f'<text x="{gx + 150}" y="{gy + 192}" text-anchor="middle" font-family="{MONO}" font-size="12" fill="#77756f">⋮ and on, to 2²⁵⁶ rows</text>')
+    sx0 = 1230
+    for i in range(16):
+        for j in range(4):
+            s.append(f'<rect x="{sx0 + i * 18}" y="{gy + 30 + j * 22}" width="14" height="18" rx="3" fill="{shade(random.Random(i * 7 + j).random())}"/>')
+    s.append(f'<rect x="{sx0 + 2 * 18 - 2}" y="{gy + 27}" width="18" height="{4 * 22 + 2}" rx="4" fill="none" stroke="{GOLD}" stroke-width="1.6"/>')
+    labels.append(wire(sx0, gy + 2, "16 small tables, k rows each", GOLD))
+    labels.append(wire(gx, gy - 22, "one table for whole vectors", "#8b8a84"))
+
+    # ① A times table: 9 × 7, read rather than worked out.
+    tx, ty0, c = 110, 728, 21
+    for r in range(1, 10):
+        for k in range(1, 10):
+            hit = (r, k) == (9, 7)
+            near = r == 9 or k == 7
+            s.append(f'<rect x="{tx + (k - 1) * c}" y="{ty0 + (r - 1) * c}" width="{c - 3}" height="{c - 3}" rx="3" '
+                     f'fill="{"rgba(199,166,89,.22)" if hit else "rgba(255,255,255,.035)" if near else "rgba(255,255,255,.015)"}" '
+                     f'stroke="{GOLD if hit else "rgba(255,255,255,.08)"}" stroke-width="{1.6 if hit else 1}"/>')
+            s.append(f'<text x="{tx + (k - 1) * c + (c - 3) / 2}" y="{ty0 + (r - 1) * c + 16}" text-anchor="middle" font-family="{MONO}" '
+                     f'font-size="10.5" fill="{GOLD if hit else "#8b8a84" if near else "#5d5b56"}">{r * k}</text>')
+    labels.append(wire(tx, ty0 - 22, "a times table: 9 × 7 is read, not worked out", "#8b8a84"))
+    labels.append(f'<div class="label pts" style="left:{tx + 9 * c + 30}px; top:{ty0 - 6}px; width:{780 - tx - 9 * c - 50}px"><p>81 answers, worked out once. Every question after that costs a glance.</p><p>Search has the same shape: a query against a paragraph is 1,024 multiplications, and a table read is one. The catch: the table must hold <b>every question you might ask</b>. 81 rows for two digits; for a vector, far too many.</p></div>')
+
+    # ④ How it got here.
+    ty, tx0, tx1 = 1136, 836, 1504
+    s.append(f'<line x1="{tx0}" y1="{ty}" x2="{tx1}" y2="{ty}" stroke="#4a4944" stroke-width="1.4"/>')
+    step_x = (tx1 - tx0) / (len(LUT_HISTORY) - 1)
+    for n, (when, name, text) in enumerate(LUT_HISTORY):
+        x = tx0 + n * step_x
+        s.append(f'<circle cx="{x}" cy="{ty}" r="5.5" fill="#191917" stroke="{GOLD if n else DIAL}" stroke-width="2"/>')
+        top = ty + 14 if n % 2 == 0 else ty - 92
+        align = "left" if n == 0 else "right" if n == len(LUT_HISTORY) - 1 else "center"
+        shift = 0 if n == 0 else -150 if n == len(LUT_HISTORY) - 1 else -75
+        labels.append(f'<div class="tl2" style="left:{x + shift}px; top:{top}px; text-align:{align}"><code>{when}</code><b>{name}</b><span>{text}</span></div>')
+
+    body = f"""<style>
+.quote2 {{ position: absolute; font-family: {MONO}; font-style: normal; font-size: 15px; line-height: 1.7; color: #dcdad3; }}
+.quote2 em {{ font-family: "Playfair", Georgia, serif; font-style: italic; font-size: 13px; color: #77756f; letter-spacing: .18em; display: block; margin-bottom: 4px; }}
+.quote2 b {{ font-weight: 400; color: {GOLD}; }}
+.pts p {{ margin: 10px 0 0; font-size: 16px; line-height: 1.38; color: #a29f97; }}
+.pts p b {{ font-weight: 400; color: #ecebe5; }}
+.pts code {{ font-family: {MONO}; font-style: normal; font-size: 13px; color: #c3c0b7; }}
+.tl2 {{ position: absolute; width: 150px; }}
+.tl2 code {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11px; color: #77756f; }}
+.tl2 b {{ display: block; font-weight: 400; font-size: 17px; color: #ecebe5; }}
+.tl2 span {{ display: block; font-size: 13.5px; line-height: 1.25; color: #a29f97; }}
+.two {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }}
+.two > div {{ border: 1px solid rgba(255,255,255,.09); border-radius: 10px; padding: 10px 13px; }}
+.two b {{ display: block; font-weight: 400; font-size: 18px; color: #ecebe5; }}
+.two code {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: {GOLD}; margin-top: 2px; }}
+.two span {{ display: block; font-size: 14.5px; line-height: 1.3; color: #a29f97; margin-top: 4px; }}
+.board {{ display: inline-block; margin-left: 14px; transform: translateY(-4px); font-family: {MONO}; font-style: normal; font-size: 11px; color: {GOLD}; border: 1px solid rgba(199,166,89,.4); border-radius: 12px; padding: 2px 10px; white-space: nowrap; }}
+</style>
+{card(70, 372, 1460, 176, head("The line it started from", GOLD, "PARTITIONQUANTIZER · ITS FIRST COMMENT"))}
+<div class="quote2" style="left:96px; top:430px; width:680px"><em>SEER · 2025-11-13</em>// Split 384-dim vector into 8 chunks of 48 dims<br>// Create 256-entry codebook for each chunk<br>// Result: <b>8 small LUTs instead of one impossible LUT</b></div>
+<div class="quote2" style="left:816px; top:430px; width:690px"><em>THREAD · TODAY</em>// Split 1024-dim vector into 16 chunks of 64 dims<br>// Create codebook for each chunk (size scaled dynamically at train time)<br>// Result: <b>16 small LUTs instead of one impossible LUT</b></div>
+{card(70, 572, 720, 380, head(step(1) + "What a lookup table buys", GOLD, "WORK, DONE ONCE"))}
+<div class="label pts" style="left:96px; top:624px; width:670px">
+  <p>A lookup table <b>trades arithmetic for memory</b>: work every answer out once, then read it. A times table is one; nobody multiplies 9 × 7 twice.</p>
+</div>
+{card(810, 572, 720, 380, head(step(2) + "The impossible table", GOLD, "AND THE WAY AROUND IT"))}
+<div class="label pts" style="left:836px; top:624px; width:670px">
+  <p>One table that gave every possible vector its own row would need <b>65,536<sup>16</sup> = 2<sup>256</sup> rows</b>, a number 78 digits long. Cut the vector into sixteen slices and give each slice its own table of k rows: sixteen small tables, a million rows at most, that together still name all 2<sup>256</sup> combinations.</p>
+</div>
+{card(70, 976, 720, 290, head(step(3) + "Two tables, two jobs" + board("notches and ruler"), GOLD))}
+<div class="label two" style="left:96px; top:1028px; width:670px">
+  <div><b>the codebook</b><code>code → notch</code><span>where each notch sits; cut once per document, from its own paragraphs, and kept</span></div>
+  <div><b>the distance table</b><code>code → distance</code><span>how far the query is from each notch; cut once per query, per document, and thrown away</span></div>
+</div>
+<div class="label pts" style="left:96px; top:1162px; width:670px"><p>A paragraph is stored as sixteen <b>addresses into the first table</b>, and scored as sixteen <b>reads from the second</b>. That is the whole idea: nothing is multiplied per paragraph at all.</p></div>
+{card(810, 976, 720, 290, head(step(4) + "How it got here", GOLD, "SEER, THEN THREAD"))}
+<svg width="{W}" height="1500">{"".join(s)}</svg>
+{"".join(labels)}"""
+    return plate("lookup-tables.png", 1350, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE PARTITION INDEX · WHY TABLES",
+                 "One impossible table", "the idea in the first commit: many small lookup tables, instead of one that could never exist",
+                 body, "the comments are PartitionQuantizer’s own, then and now; the dates are Seer’s and Thread’s history")
+
+
+ALL = ["sewn_thread_seam", "thread_inside", "partition_index_filing", "partition_index_search", "first_index", "lineage", "credibility", "threads", "funnel", "pins", "training", "lut"]
 
 
 def main():
