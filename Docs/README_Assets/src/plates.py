@@ -535,7 +535,7 @@ def partition_index():
     axis = lambda x, y, text, colour="#77756f": labels.append(wire(x, y, text, colour))
 
     # 1 · A document becomes sixteen codebooks.
-    mx, cw = 420, 30                                       # the matrix: rows are partitions, columns slices
+    mx, cw = 420, 30                                       # one vector per partition, cut into slices
     rows = [474, 508, 542, 600]
     for (name, text), y in zip(PARTITIONS + [("p₁₆₀", "…the last paragraph of the runbook")], rows):
         labels.append(f'<div class="ptext" style="left:96px; top:{y}px"><b>{name}</b> {text}</div>')
@@ -596,7 +596,7 @@ def partition_index():
     rx = 600
     v1 = vector()
     approx = [min(1, max(0, v + rng.uniform(-.09, .09))) for v in v1]
-    axis(rx, 850, "p₁ · 1024 floats · 4 KB", LINE)
+    axis(rx, 850, "p₁’s vector · 1024 floats · 4 KB", LINE)
     s.append(strip(rx, 874, v1, h=20, mark=SLICE))
     rsx = rx + SLICE * CELL_W + CELL_W / 2
     s.append(dotted(rsx, 898, rsx, 941))
@@ -679,7 +679,7 @@ def partition_index():
 .then code {{ font-family: {MONO}; font-style: normal; font-size: 12.5px; color: #c3c0b7; }}
 </style>
 {card(70, 372, 1460, 374, head(step(1) + "A document becomes sixteen codebooks", GOLD, "ONCE, WHEN THE DOCUMENT IS FILED"))}
-<div class="caption2" style="left:96px; top:688px; width:1410px">Every vector, and every query, is cut at the same fixed boundaries into sixteen slices of 64 dimensions. A codebook is trained on one slice of <b>all the document’s partitions together</b>, so a document has sixteen codebooks, shared by every partition in it; no partition has its own. k, the centroids in each, grows with the document: the largest power of two at most n ÷ 39.</div>
+<div class="caption2" style="left:96px; top:688px; width:1410px; font-size:16px">A partition is a segment of its document, a paragraph or a section, with one vector. Every vector, and every query, is cut at the same boundaries into sixteen 64-d slices; each codebook is trained on one slice of <b>all the document’s partitions together</b>, so the document’s sixteen codebooks are shared by every partition in it. k is the largest power of two at most n ÷ 39.</div>
 {card(70, 770, 1460, 448, head(step(2) + "A partition becomes sixteen codes", GOLD, "ITS COMPRESSED EMBEDDING"))}
 {card(70, 1242, 720, 336, head("Where each part lives", "", "MEMORY · DISK"))}
 <div class="cols" style="left:90px; top:1300px; width:680px">
@@ -707,7 +707,224 @@ def partition_index():
                  body, "the codes and distances are illustrative; the shapes, the sizes and the rules are the code’s")
 
 
-ALL = ["sewn_thread_seam", "thread_inside", "partition_index"]
+# MARK: The first index (Seer, with HNSW)
+
+# From riteshpakala/Seer: PartitionIndex at 87b7738 (2025-11-15), the HNSW graphs at 691ac2f (2026-03-23).
+TIMELINE = [
+    ("2025-11-15", "PartitionIndex", "one per document, each scanned"),
+    ("2026-03-08", "IVF-PQ", "a global index, trained at 2,500"),
+    ("2026-03-11", "HNSW", "replaces IVF, live from the first insert"),
+    ("2026-03-14", "personal HNSW", "a graph per owner, and its routes"),
+    ("AII", "set aside", "the PQ scan stays; the graph returns"),
+]
+ROUTES = [
+    ("GLOBAL", "the global graph is live", ["global HNSW · k × 10", "your access: available ∪ yours, k × 8 + k × 2",
+                                            "a floor for every group, from its PartitionIndex", "Sinatra", "threshold"]),
+    ("PERSONAL · GROUP", "your graph is live", ["your HNSW · k × 5", "the group, if asked", "Sinatra", "threshold"]),
+    ("NO GRAPH YET", "the fallback", ["each document’s PartitionIndex, scanned with PQ"]),
+]
+HNSW_ROUTES = [
+    ("POST /v1/hnsw/personal", "every live node of your graph, with its layer-0 neighbours"),
+    ("POST /v1/hnsw/global", "the shared graph, as far as you may see it"),
+    ("POST /v1/hnsw/node", "one node: its full text and every layer’s neighbours"),
+    ("DELETE /v1/hnsw/node", "remove it, from both graphs and its document"),
+]
+
+
+def layered_graph(x0, y0):
+    """Three layers of one graph, and a query cascading down them."""
+    xs = [x0 + 40 + i * 44 for i in range(14)]
+    layers = {2: [2, 10], 1: [2, 5, 8, 10, 12], 0: list(range(14))}
+    ys = {2: y0 + 30, 1: y0 + 120, 0: y0 + 210}
+    out = []
+    for level, y in ys.items():
+        out.append(f'<rect x="{x0}" y="{y - 26}" width="{xs[-1] - x0 + 40}" height="52" rx="10" fill="rgba(255,255,255,.025)" stroke="rgba(255,255,255,.07)"/>')
+    for i in range(14):                                   # a node is one column through its layers
+        top = max(l for l, members in layers.items() if i in members)
+        if top > 0:
+            out.append(dotted(xs[i], ys[top], xs[i], ys[0], "#6d6b64", .7))
+    for level, members in layers.items():
+        y = ys[level]
+        pairs = list(zip(members, members[1:])) + ([(a, b) for a, b in zip(members, members[2:])] if level == 0 else [])
+        for a, b in pairs:
+            arc = "" if level else f" Q{(xs[a] + xs[b]) / 2},{y + (18 if (b - a) == 2 else 0)} "
+            d = f"M{xs[a]},{y}{arc or ' L'}{xs[b]},{y}"
+            out.append(f'<path d="{d}" fill="none" stroke="#5f5d57" stroke-width="1.3"/>')
+        for i in members:
+            r = 7 if level == 2 else 6 if level == 1 else 4.5
+            out.append(f'<circle cx="{xs[i]}" cy="{y}" r="{r}" fill="#2a2925" stroke="#8b8a84" stroke-width="1.4"/>')
+    # The query: greedy at 2 and 1, a beam at 0.
+    path = [(2, 2), (2, 10), (1, 10), (1, 8), (0, 8)]
+    for (la, ia), (lb, ib) in zip(path, path[1:]):
+        xa, ya, xb, yb = xs[ia], ys[la], xs[ib], ys[lb]
+        if la == lb:
+            out.append(f'<line x1="{xa + (8 if xb > xa else -8)}" y1="{ya - 12}" x2="{xb + (-10 if xb > xa else 10)}" y2="{yb - 12}" stroke="{GOLD}" stroke-width="2"/>')
+            out.append(arrowhead(xb + (-10 if xb > xa else 10), yb - 12, "right" if xb > xa else "left", GOLD))
+        else:
+            out.append(f'<line x1="{xa + 10}" y1="{ya + 8}" x2="{xb + 10}" y2="{yb - 10}" stroke="{GOLD}" stroke-width="2" stroke-dasharray="5 4"/>')
+            out.append(arrowhead(xb + 10, yb - 10, "down", GOLD))
+    out.append(f'<ellipse cx="{xs[8]}" cy="{ys[0]}" rx="104" ry="20" fill="rgba(199,166,89,.1)" stroke="{GOLD}" stroke-width="1.4" stroke-dasharray="4 4"/>')
+    for i in (6, 7, 8, 9, 10):
+        out.append(f'<circle cx="{xs[i]}" cy="{ys[0]}" r="4.5" fill="{GOLD}"/>')
+    out.append(f'<text x="{xs[2] - 22}" y="{ys[2] - 14}" font-family="{MONO}" font-size="11" fill="{GOLD}" text-anchor="end">q</text>')
+    out.append(f'<circle cx="{xs[2] - 14}" cy="{ys[2] - 18}" r="3.5" fill="{GOLD}"/>')
+    out.append(dotted(xs[2] - 11, ys[2] - 15, xs[2] - 6, ys[2] - 6))
+    labels = [(x0 + 10, ys[2] - 46, "layer 2 · the few hubs: greedy, one hop"), (x0 + 10, ys[1] - 46, "layer 1 · greedy again, then down"),
+              (x0 + 10, ys[0] - 46, "layer 0 · every partition, ≤ 2M = 32 links")]
+    return "".join(out), labels, (xs[8] + 112, ys[0] - 8)
+
+
+def world_graph(x0, y0, w, h):
+    """The graph as it was shown: layer-0 neighbours as edges, a node's level as its size, yours in blue."""
+    rng = random.Random(7)
+    centres = [(0.22, 0.32), (0.55, 0.22), (0.78, 0.55), (0.38, 0.72), (0.64, 0.82)]
+    nodes = []
+    for c, (cx, cy) in enumerate(centres):
+        for _ in range(9):
+            nodes.append((x0 + w * min(.97, max(.03, cx + rng.gauss(0, .07))), y0 + h * min(.95, max(.05, cy + rng.gauss(0, .08))),
+                          c in (0, 3)))
+    out, edges = [], set()
+    for i, (xa, ya, _) in enumerate(nodes):
+        near = sorted(range(len(nodes)), key=lambda j: (nodes[j][0] - xa) ** 2 + (nodes[j][1] - ya) ** 2)[1:4]
+        edges.update(tuple(sorted((i, j))) for j in near)
+    for a, b in sorted(edges):
+        out.append(f'<line x1="{nodes[a][0]:.1f}" y1="{nodes[a][1]:.1f}" x2="{nodes[b][0]:.1f}" y2="{nodes[b][1]:.1f}" stroke="#4f4d48" stroke-width="1.1"/>')
+    hubs = {0: 2, 9: 1, 20: 2, 31: 1, 40: 1}
+    for i, (x, y, yours) in enumerate(nodes):
+        level = hubs.get(i, 0)
+        r = 4 + level * 3.2
+        fill = BLUE if yours else "#7d7b74"
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" opacity="{.95 if yours else .7}" stroke="#191917" stroke-width="1.5"/>')
+    sx, sy, _ = nodes[4]
+    out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="11" fill="none" stroke="{GOLD}" stroke-width="2"/>')
+    return "".join(out), (sx, sy)
+
+
+def first_index():
+    s, labels = [], []
+    axis = lambda x, y, text, colour="#77756f": labels.append(wire(x, y, text, colour))
+
+    # The timeline.
+    ty = 368
+    s.append(f'<line x1="96" y1="{ty}" x2="1504" y2="{ty}" stroke="#4a4944" stroke-width="1.4"/>')
+    step_x = (1504 - 96) / (len(TIMELINE) - 1)
+    for n, (date, name, text) in enumerate(TIMELINE):
+        x = 96 + n * step_x
+        last = n == len(TIMELINE) - 1
+        s.append(f'<circle cx="{x}" cy="{ty}" r="6" fill="#191917" stroke="{DIAL if last else GOLD}" stroke-width="2"/>')
+        align = "left" if n == 0 else "right" if last else "center"
+        shift = 0 if n == 0 else -250 if last else -125
+        labels.append(f'<div class="tl" style="left:{x + shift}px; top:{ty + 14}px; text-align:{align}"><code>{date}</code><b>{name}</b><span>{text}</span></div>')
+
+    # 1 · A partition lived twice.
+    s.append(reply(338, 416, 578, GOLD, width=1.8))
+    s.append(reply(338, 416, 760, LINE, width=1.8))
+    s.append(f'<path d="M330,640 Q338,640 338,600 L338,578 M338,690 L338,760" fill="none" stroke="#6d6b64" stroke-width="1.4"/>')
+    axis(346, 556, "first", GOLD)
+    axis(346, 738, "then", LINE)
+    s.append(strip(108, 668, [random.Random(3).random() for _ in range(16)], h=14, w=13.5))
+
+    # 2 · The graph's layers.
+    graph, glabels, beam_at = layered_graph(102, 996)
+    s.append(graph)
+    for x, y, text in glabels:
+        axis(x, y, text)
+    axis(beam_at[0] - 214, beam_at[1] + 40, "layer 0: a beam of ef = 50 around the landing", GOLD)
+
+    # 4 · The world.
+    world, (sx, sy) = world_graph(110, 1450, 450, 400)
+    s.append(world)
+    s.append(f'<path d="M{sx + 11},{sy} L560,{sy} L590,1500" fill="none" stroke="{GOLD}" stroke-width="1.2"/>')
+
+    routes = "".join(
+        f'<div class="route"><div class="who"><span class="machine">{scope}</span><i>{when}</i></div><div class="flow">'
+        + '<span class="arrow">→</span>'.join(f'<span class="hop">{hop}</span>' for hop in hops) + "</div></div>"
+        for scope, when, hops in ROUTES)
+    endpoints = "".join(f'<div class="ep"><code>{call}</code><span>{text}</span></div>' for call, text in HNSW_ROUTES)
+    body = f"""<style>
+.tl {{ position: absolute; width: 250px; }}
+.tl span {{ white-space: nowrap; }}
+.tl code {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #77756f; }}
+.tl b {{ display: block; font-weight: 400; font-size: 20px; color: #ecebe5; margin-top: 2px; }}
+.tl span {{ display: block; font-size: 14.5px; line-height: 1.28; color: #a29f97; margin-top: 2px; }}
+.box {{ position: absolute; box-sizing: border-box; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px 16px; background: rgba(255,255,255,.02); }}
+.box h5 {{ margin: 0; font-weight: 400; font-size: 19px; color: #e3e1da; display: flex; justify-content: space-between; align-items: baseline; }}
+.box h5 .machine {{ font-size: 10.5px; }}
+.box p {{ margin: 6px 0 0; font-size: 15px; line-height: 1.3; color: #a29f97; }}
+.field {{ display: grid; grid-template-columns: 150px 1fr; column-gap: 10px; margin-top: 5px; font-size: 14.5px; color: #a29f97; }}
+.field code {{ font-family: {MONO}; font-style: normal; font-size: 12.5px; color: #dcdad3; }}
+.kv {{ display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }}
+.kv code {{ font-family: {MONO}; font-style: normal; font-size: 11.5px; color: {GOLD}; border: 1px solid rgba(199,166,89,.4); border-radius: 4px; padding: 1px 7px; }}
+.route {{ border-top: 1px solid rgba(255,255,255,.07); padding: 12px 0 10px; }}
+.route:first-child {{ border-top: none; padding-top: 0; }}
+.route .who {{ display: flex; gap: 10px; align-items: baseline; }}
+.route .who i {{ font-size: 15px; color: #8f8c84; }}
+.route .flow {{ display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; margin-top: 8px; }}
+.hop {{ font-size: 15px; color: #dcdad3; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; padding: 3px 9px; }}
+.arrow {{ color: #6d6b64; font-style: normal; font-size: 13px; }}
+.ep {{ display: grid; grid-template-columns: 196px 1fr; column-gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); }}
+.ep code {{ font-family: {MONO}; font-style: normal; font-size: 12px; color: {GOLD}; }}
+.ep span {{ font-size: 14.5px; color: #a29f97; line-height: 1.28; }}
+.hci p {{ margin: 11px 0 0; font-size: 16px; line-height: 1.34; color: #a29f97; }}
+.hci p b {{ font-weight: 400; color: #ecebe5; }}
+.inspect {{ position: absolute; width: 238px; box-sizing: border-box; border: 1px solid rgba(199,166,89,.55); border-radius: 10px; padding: 10px 12px; background: #1d1c19; }}
+.inspect code {{ font-family: {MONO}; font-style: normal; font-size: 11px; color: #8b8a84; }}
+.inspect p {{ margin: 5px 0 0; font-size: 14.5px; line-height: 1.28; color: #dcdad3; }}
+.inspect .del {{ display: inline-block; margin-top: 8px; font-family: {MONO}; font-style: normal; font-size: 11px; color: {ORANGE}; border: 1px solid rgba(216,119,63,.5); border-radius: 4px; padding: 1px 7px; }}
+.legend2 {{ position: absolute; display: flex; gap: 16px; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #8b8a84; }}
+.legend2 i {{ display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }}
+</style>
+{card(70, 488, 1460, 400, head(step(1) + "A partition lived twice", GOLD, "ON PUT · TABLEMUTATOR"))}
+<div class="ptext" style="left:96px; top:592px; width:234px; height:auto; white-space:normal"><b>p</b> a partition: a segment of its document, a paragraph of an essay, with its full vector</div>
+<div class="box" style="left:424px; top:540px; width:560px; height:160px">
+  <h5>a node in the graph <span class="machine">HNSWGRAPH · GLOBAL, AND YOUR OWN</span></h5>
+  <div class="field"><code>partition</code><span>its text, url and owner</span></div>
+  <div class="field"><code>embedding</code><span>the full vector, kept: traversal measures it</span></div>
+  <div class="field"><code>level</code><span>the highest layer it reaches</span></div>
+  <div class="field"><code>neighbors[l]</code><span>its links at layer l: ≤ 32 at 0, ≤ 16 above</span></div>
+</div>
+<div class="box" style="left:424px; top:716px; width:560px; height:150px">
+  <h5>a partition of its document’s PartitionIndex <span class="machine">PER DOCUMENT · PQ</span></h5>
+  <p>the document’s codebooks are trained on all its partitions; each keeps 16 codes, 32 bytes, and its vector is cleared: <code style="font-family:{MONO}; font-style:normal; font-size:12.5px; color:#dcdad3">embedding = []</code></p>
+  <p>the graph had to take the vector first, before training let it go</p>
+</div>
+<div class="box" style="left:1004px; top:540px; width:500px; height:326px">
+  <h5>Where it lived <span class="machine">ON DISK</span></h5>
+  <div class="field"><code>table</code><span>keys, one PartitionIndex per document, and the global graph</span></div>
+  <div class="field"><code>personal/&lt;owner&gt;</code><span>that owner’s own graph, written beside the global one</span></div>
+  <div class="field"><code>documents/&lt;id&gt;</code><span>the document’s record</span></div>
+  <div class="field"><code>registry</code><span>owners, groups, access</span></div>
+  <div class="kv"><code>M = 16</code><code>efConstruction = 200</code><code>efSearch = 50</code></div>
+  <p style="margin-top:12px">the trade: in its document, a partition’s vector is 32 bytes of codes, scanned; in the graph it holds the full vector and its links, and is walked in O(log N)</p>
+</div>
+{card(70, 912, 720, 420, head(step(2) + "The navigable graph", GOLD, "HNSW"))}
+<div class="caption2 small" style="left:96px; top:1264px; width:670px">A node’s level is drawn at insert, P(level ≥ l) = (1 / ln M)<sup>l</sup>, so most live only at layer 0. An insert links to its nearest at each of its layers; a delete only marks the node, and compaction rebuilds.</div>
+{card(810, 912, 720, 420, head(step(3) + "Search, by scope", GOLD, "PARTITIONTABLE.SEARCH"))}
+<div class="label" style="left:836px; top:970px; width:670px">{routes}</div>
+{card(70, 1356, 1460, 520, head(step(4) + "A world you could walk", BLUE, "THE GRAPH, AS AN INTERFACE"))}
+<div class="legend2" style="left:96px; top:1416px; flex-direction:column; gap:4px; width:470px"><span><i style="background:{BLUE}"></i>yours: read, delete, relink</span><span><i style="background:#7d7b74"></i>the shared graph: read only</span><span>size = level · edges = layer-0 neighbours</span></div>
+<div class="inspect" style="left:590px; top:1470px"><code>p · level 0 · 6 neighbours · yours</code><p>“Ada leads Joltvault; on-call rotates weekly…”</p><span class="del">delete node</span></div>
+<div class="label" style="left:836px; top:1404px; width:670px">{endpoints}
+  <div class="hci">
+    <p><b>The index was the interface.</b> What a person saw was the structure search used: a partition’s neighbours were its edges, and its rank in the hierarchy was its size.</p>
+    <p><b>Ownership lived in the data.</b> Your graph held only your partitions, so it could be handed to you whole; the shared graph was shown as far as you could see it, never filtered after the fact.</p>
+    <p><b>Changes were visible.</b> Deleting a node took its edges with it, and compaction demoted hubs, which shrank.</p>
+  </div>
+</div>
+<svg width="{W}" height="1960">{"".join(s)}</svg>
+{"".join(labels)}"""
+    css_more = f"""<style>
+.ptext {{ position: absolute; box-sizing: border-box; padding: 8px 10px 34px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; font-size: 14.5px; line-height: 1.28; color: #a29f97; }}
+.ptext b {{ font-family: {MONO}; font-style: normal; font-weight: 400; font-size: 12px; color: {GOLD}; margin-right: 4px; }}
+.caption2 {{ position: absolute; font-size: 15.5px; line-height: 1.32; color: #8f8c84; }}
+.caption2 sup {{ font-size: .7em; }}
+</style>"""
+    return plate("first-index.png", 1940, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE FIRST DESIGN · SEER",
+                 "The first index", "each partition lived twice: as codes in its document, and as a node in a world you could walk",
+                 css_more + body, "from riteshpakala/Seer: 87b7738, 2025-11-15, to 691ac2f, 2026-03-23 · retired in AII, planned to return")
+
+
+ALL = ["sewn_thread_seam", "thread_inside", "partition_index", "first_index"]
 
 
 def main():
