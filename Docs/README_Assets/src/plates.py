@@ -900,7 +900,7 @@ def first_index():
 {card(70, 912, 720, 420, head(step(2) + "The navigable graph", GOLD, "HNSW"))}
 <div class="caption2 small" style="left:96px; top:1264px; width:670px">A node’s level is drawn at insert, P(level ≥ l) = (1 / ln M)<sup>l</sup>, so most live only at layer 0. An insert links to its nearest at each of its layers; a delete only marks the node, and compaction rebuilds.</div>
 {card(810, 912, 720, 420, head(step(3) + "Search, by scope", GOLD, "PARTITIONTABLE.SEARCH"))}
-<div class="label" style="left:836px; top:970px; width:670px">{routes}</div>
+<div class="label" style="left:836px; top:1004px; width:670px">{routes}</div>
 {card(70, 1356, 1460, 520, head(step(4) + "A world you could walk", BLUE, "THE GRAPH, AS AN INTERFACE"))}
 <div class="legend2" style="left:96px; top:1416px; flex-direction:column; gap:4px; width:470px"><span><i style="background:{BLUE}"></i>yours: read, delete, relink</span><span><i style="background:#7d7b74"></i>the shared graph: read only</span><span>size = level · edges = layer-0 neighbours</span></div>
 <div class="inspect" style="left:590px; top:1470px"><code>p · level 0 · 6 neighbours · yours</code><p>“Ada leads Joltvault; on-call rotates weekly…”</p><span class="del">delete node</span></div>
@@ -924,7 +924,222 @@ def first_index():
                  css_more + body, "from riteshpakala/Seer: 87b7738, 2025-11-15, to 691ac2f, 2026-03-23 · retired in AII, planned to return")
 
 
-ALL = ["sewn_thread_seam", "thread_inside", "partition_index", "first_index"]
+# MARK: The lineage (words to partitions)
+
+LINEAGE = [
+    ("2016 · where this began", "lexicons", "a score per word, looked up"),
+    ("2014 · GloVe", "word vectors", "a point per word, learned from use"),
+    ("2018 · ELMo, BERT", "context", "a word’s point depends on its sentence"),
+    ("2019 → · sentence models", "passages", "a passage becomes one point"),
+    ("2026 · Seer", "the graph", "HNSW links them across documents"),
+]
+
+
+def iso(x, y, z, ox, oy, s=145):
+    """A point of a small 3-D space, drawn isometrically."""
+    return ox + (x - z) * s * 0.87, oy + (x + z) * s * 0.5 - y * s
+
+
+def word_space(ox, oy):
+    out = []
+    for (x, y, z), name in (((1.25, 0, 0), "x"), ((0, 1.25, 0), "y"), ((0, 0, 1.25), "z")):
+        X, Y = iso(x, y, z, ox, oy)
+        out.append(f'<line x1="{ox}" y1="{oy}" x2="{X:.1f}" y2="{Y:.1f}" stroke="#5f5d57" stroke-width="1.3"/>')
+        out.append(f'<text x="{X + (6 if name != "z" else -14):.1f}" y="{Y + 4:.1f}" font-family="{MONO}" font-size="11" fill="#77756f">{name}</text>')
+    words = {"king": (0.25, 0.95, 0.2), "queen": (0.6, 0.95, 0.2), "man": (0.25, 0.5, 0.15), "woman": (0.6, 0.5, 0.15),
+             "happy": (1.15, 0.12, 0.55), "glad": (0.98, 0.42, 0.62), "joyful": (0.8, 0.2, 0.88),
+             "car": (0.15, 0.15, 1.0), "truck": (0.28, 0.08, 1.12)}
+    at = {w: iso(*p, ox, oy) for w, p in words.items()}
+    for a, b, colour in (("man", "king", GOLD), ("woman", "queen", GOLD), ("man", "woman", "#8b8a84"), ("king", "queen", "#8b8a84")):
+        (xa, ya), (xb, yb) = at[a], at[b]
+        dash = ' stroke-dasharray="4 4"' if colour != GOLD else ""
+        out.append(f'<line x1="{xa:.1f}" y1="{ya:.1f}" x2="{xb:.1f}" y2="{yb:.1f}" stroke="{colour}" stroke-width="1.6"{dash}/>')
+    for w, (x, y) in at.items():
+        x0, y0, z0 = words[w]
+        fx, fy = iso(x0, 0, z0, ox, oy)
+        out.append(dotted(x, y, fx, fy, "#4a4944", .8))
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4.5" fill="{LINE}"/>')
+        out.append(f'<text x="{x + 8:.1f}" y="{y - 6:.1f}" font-family="{MONO}" font-size="12" fill="#dcdad3">{w}</text>')
+    return "".join(out)
+
+
+def passage_space(x0, y0, w, h):
+    rng = random.Random(11)
+    docs = [("runbook", BLUE, (0.25, 0.35)), ("stand-ups", GREEN, (0.7, 0.3)), ("essay", ORANGE, (0.5, 0.75))]
+    pts = []
+    for d, (_, colour, (cx, cy)) in enumerate(docs):
+        for _ in range(9):
+            pts.append((x0 + w * min(.95, max(.05, cx + rng.gauss(0, .13))), y0 + h * min(.93, max(.07, cy + rng.gauss(0, .12))), d))
+    out, edges = [], set()
+    for i, (xa, ya, _) in enumerate(pts):
+        near = sorted(range(len(pts)), key=lambda j: (pts[j][0] - xa) ** 2 + (pts[j][1] - ya) ** 2)[1:4]
+        edges.update(tuple(sorted((i, j))) for j in near)
+    cross = [(a, b) for a, b in sorted(edges) if pts[a][2] != pts[b][2]]
+    pick = min(cross, key=lambda e: (pts[e[0]][0] - pts[e[1]][0]) ** 2 + (pts[e[0]][1] - pts[e[1]][1]) ** 2)
+    for a, b in sorted(edges):
+        strong = (a, b) == pick
+        out.append(f'<line x1="{pts[a][0]:.1f}" y1="{pts[a][1]:.1f}" x2="{pts[b][0]:.1f}" y2="{pts[b][1]:.1f}" '
+                   f'stroke="{GOLD if strong else "#4f4d48"}" stroke-width="{2.4 if strong else 1.1}"/>')
+    for x, y, d in pts:
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{docs[d][1]}" stroke="#191917" stroke-width="1.5"/>')
+    a, b = pick
+    return "".join(out), docs, ((pts[a][0] + pts[b][0]) / 2, (pts[a][1] + pts[b][1]) / 2)
+
+
+def lineage():
+    s, labels = [], []
+    ty = 372
+    s.append(f'<line x1="96" y1="{ty}" x2="1504" y2="{ty}" stroke="#4a4944" stroke-width="1.4"/>')
+    step_x = (1504 - 96) / (len(LINEAGE) - 1)
+    for n, (when, name, text) in enumerate(LINEAGE):
+        x = 96 + n * step_x
+        s.append(f'<circle cx="{x}" cy="{ty}" r="6" fill="#191917" stroke="{GOLD}" stroke-width="2"/>')
+        align = "left" if n == 0 else "right" if n == len(LINEAGE) - 1 else "center"
+        shift = 0 if n == 0 else -250 if n == len(LINEAGE) - 1 else -125
+        labels.append(f'<div class="tl" style="left:{x + shift}px; top:{ty + 14}px; text-align:{align}"><code>{when}</code><b>{name}</b><span>{text}</span></div>')
+
+    # ① A word has a score.
+    lex = [("running", "—", 0), ("late", "sadness", .35), ("dreading", "fear", .85), ("the", "—", 0), ("review", "—", 0)]
+    rows = "".join(f'<div class="lex"><span>{word}</span><code>{tag}</code><i style="width:{v * 120:.0f}px"></i></div>' for word, tag, v in lex)
+    cadence = "".join(f'<div class="cad"><code>{emo}</code><i style="width:{v * 200:.0f}px; background:{c}"></i></div>'
+                      for emo, v, c in (("fear", .85, ORANGE), ("sadness", .35, BLUE), ("joy", .04, GOLD)))
+    # ② A word is a point.
+    s.append(word_space(830, 760))
+    # ③ A partition is a point.
+    graph, docs, mid = passage_space(1084, 560, 420, 300)
+    s.append(graph)
+    s.append(f'<line x1="{mid[0]:.1f}" y1="{mid[1]:.1f}" x2="{mid[0] - 30:.1f}" y2="{mid[1] + 60:.1f}" stroke="{GOLD}" stroke-width="1"/>')
+    labels.append(wire(mid[0] - 26, mid[1] + 62, "a link across two documents", GOLD, anchor="right"))
+    legend = "".join(f'<span><i style="background:{c}"></i>{name}</span>' for name, c, _ in docs)
+
+    body = f"""<style>
+.tl {{ position: absolute; width: 250px; }}
+.tl code {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #77756f; }}
+.tl b {{ display: block; font-weight: 400; font-size: 20px; color: #ecebe5; margin-top: 2px; }}
+.tl span {{ display: block; font-size: 14.5px; line-height: 1.28; color: #a29f97; margin-top: 2px; white-space: nowrap; }}
+.cap {{ position: absolute; font-size: 15.5px; line-height: 1.34; color: #a29f97; }}
+.cap b {{ font-weight: 400; color: #ecebe5; }}
+.lex {{ display: grid; grid-template-columns: 90px 80px 1fr; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 16px; color: #dcdad3; }}
+.lex code, .cad code {{ font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #8b8a84; }}
+.lex i {{ display: block; height: 6px; border-radius: 3px; background: #8b8a84; }}
+.msg {{ font-size: 18px; color: #ecebe5; margin-bottom: 10px; }}
+.cad {{ display: grid; grid-template-columns: 70px 1fr; align-items: center; margin-top: 7px; }}
+.cad i {{ display: block; height: 8px; border-radius: 4px; }}
+.legend3 {{ position: absolute; display: flex; gap: 14px; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: #8b8a84; }}
+.legend3 i {{ display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }}
+.note {{ position: absolute; font-size: 17px; line-height: 1.36; color: #a29f97; }}
+.note b {{ font-weight: 400; color: #ecebe5; }}
+</style>
+{card(70, 470, 473, 560, head(step(1) + "A word has a score", GOLD, "LEXICONS"))}
+<div class="label" style="left:94px; top:528px; width:425px">
+  <div class="msg">“running late, dreading the review”</div>{rows}
+  <div class="wire" style="position:static; color:#77756f; margin-top:16px">the message’s cadence: its words, summed</div>{cadence}
+</div>
+<div class="cap" style="left:94px; top:880px; width:425px">A lexicon scores each word on its own, and a message is the sum of its words. <b>Meaning is looked up, not measured</b>: a word the list lacks says nothing, and “not happy” reads as happy.</div>
+{card(563, 470, 473, 560, head(step(2) + "A word is a point", GOLD, "GLOVE"))}
+<div class="cap" style="left:587px; top:880px; width:425px">GloVe learns from how words are used together, so words used alike sit close. <b>Distance is meaning, and a direction can be a relation</b>: king − man + woman lands near queen. Drawn here in three dimensions; GloVe used 50 to 300.</div>
+{card(1056, 470, 474, 560, head(step(3) + "A partition is a point", GOLD, "HNSW"))}
+<div class="legend3" style="left:1080px; top:566px">{legend}</div>
+<div class="cap" style="left:1080px; top:880px; width:426px">A text embedding model reads a whole passage, in context, into one vector: voyage-4-nano gives 1,024 numbers. <b>The graph links each partition to its nearest</b>, whichever document it came from.</div>
+<div class="note" style="left:70px; top:1062px; width:1460px">A vector is a list of numbers, one per dimension; x, y and z are only how we draw it. What grew along the way is the unit that gets a point: <b>a word, then a word in its sentence, then a whole passage</b>. The embedding model makes the distances; HNSW makes them walkable, so one partition of a document can find its neighbours in another.</div>
+<svg width="{W}" height="1300">{"".join(s)}</svg>
+{"".join(labels)}"""
+    return plate("lineage.png", 1220, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE LINEAGE",
+                 "Words to partitions", "from a score per word, to a point per word, to a point per passage, linked across documents",
+                 body, "the points are illustrative; GloVe 2014, ELMo and BERT 2018, Sentence-BERT 2019")
+
+
+# MARK: The credibility layer (Seer's firehose and Gita)
+
+# From riteshpakala/Seer: the firehose (2026-03-02 → 03-12) and Gita's spans, royalties and wallet (2026-03-29 → 04-23).
+SOURCES = [("BlueSky", BLUE, 60), ("RSS", ORANGE, 25), ("you", GREEN, 15)]
+POSTS = [("@person-a.bsky.social", "the bridge closure moves the night buses to the river road"),
+         ("@person-b.bsky.social", "river road runs every 20 minutes after 11, checked tonight"),
+         ("@person-c.bsky.social", "the 40 skips the bridge stop until spring")]
+
+
+def credibility():
+    s, labels = [], []
+    axis = lambda x, y, text, colour="#77756f": labels.append(wire(x, y, text, colour))
+
+    # ① The firehose: a chain of stages.
+    chain = [("Bluesky · RSS", "posts, as they are published"), ("the firehose", "hourly, filtered by keywords"),
+             ("service accounts", "filed as BlueSky, RSS, …"), ("the index", "partitions, owned by those accounts")]
+    chain_html = ""
+    for i, (name, text) in enumerate(chain):
+        x = 96 + i * 362
+        chain_html += f'<div class="stage2" style="left:{x}px; top:430px"><b>{name}</b><span>{text}</span></div>'
+        if i < len(chain) - 1:
+            s.append(reply(x + 304, x + 352, 466, DIAL, width=1.4))
+
+    # ② An answer and the people behind it.
+    bar_x, bar_y, bar_w = 640, 690, 460
+    x = bar_x
+    for name, colour, pct in SOURCES:
+        w = bar_w * pct / 100
+        s.append(f'<rect x="{x + 1}" y="{bar_y}" width="{w - 2}" height="26" rx="5" fill="{colour}" opacity=".85"/>')
+        s.append(f'<text x="{x + 10}" y="{bar_y + 17.5}" font-family="{MONO}" font-size="12" fill="#121211">{pct}% {name}</text>')
+        x += w
+    s.append(f'<rect x="{bar_x - 3}" y="{bar_y - 3}" width="{bar_w * .6 + 2}" height="32" rx="7" fill="none" stroke="{GOLD}" stroke-width="1.8"/>')
+    s.append(f'<path d="M{bar_x + bar_w * .3},{bar_y + 30} L{bar_x + bar_w * .3},{bar_y + 70} L1100,{bar_y + 70}" fill="none" stroke="{GOLD}" stroke-width="1.6" stroke-dasharray="5 4"/>')
+    s.append(arrowhead(1104, bar_y + 70, "right", GOLD))
+    axis(bar_x + bar_w * .3 + 10, bar_y + 48, "tap BlueSky", GOLD)
+    posts = "".join(f'<div class="post"><code>{who}</code><span>“{text}”</span></div>' for who, text in POSTS)
+
+    answer = ('The <mark class="b">night buses now take the river road</mark><sup>1</sup> while the bridge is closed, '
+              '<mark class="b">every 20 minutes after 11</mark><sup>2</sup>. <mark class="r">The city expects the bridge back in March</mark><sup>3</sup>, '
+              'and <mark class="g">you usually catch the 11:40</mark><sup>4</sup>.')
+    body = f"""<style>
+.stage2 {{ position: absolute; width: 300px; box-sizing: border-box; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 10px 14px; }}
+.stage2 b {{ display: block; font-weight: 400; font-size: 19px; color: #ecebe5; }}
+.stage2 span {{ display: block; font-size: 15px; color: #a29f97; margin-top: 2px; }}
+.cap {{ position: absolute; font-size: 15.5px; line-height: 1.34; color: #a29f97; }}
+.cap b {{ font-weight: 400; color: #ecebe5; }}
+.q {{ font-size: 17px; color: #8f8c84; }}
+.ans {{ font-size: 19px; line-height: 1.55; color: #dcdad3; margin-top: 8px; }}
+.ans mark {{ background: none; color: #ecebe5; padding: 0 2px; border-bottom: 2px solid; }}
+.ans mark.b {{ border-color: {BLUE}; }} .ans mark.r {{ border-color: {ORANGE}; }} .ans mark.g {{ border-color: {GREEN}; }}
+.ans sup {{ font-family: {MONO}; font-style: normal; font-size: 10px; color: {GOLD}; }}
+.post {{ border: 1px solid rgba(94,143,218,.4); border-radius: 9px; padding: 8px 12px; margin-top: 8px; }}
+.post code {{ display: block; font-family: {MONO}; font-style: normal; font-size: 11.5px; color: {BLUE}; }}
+.post span {{ display: block; font-size: 15px; line-height: 1.3; color: #dcdad3; margin-top: 3px; }}
+.pts p {{ margin: 10px 0 0; font-size: 16px; line-height: 1.36; color: #a29f97; }}
+.pts p b {{ font-weight: 400; color: #ecebe5; }}
+</style>
+{card(70, 372, 1460, 150, head(step(1) + "The firehose", GOLD, "SEER · 2026-03"))}
+{chain_html}
+{card(70, 546, 1460, 384, head(step(2) + "An answer, and the people behind it", GOLD, "GITA · SPANS, SHARES, ROYALTIES"))}
+<div class="label" style="left:96px; top:604px; width:500px">
+  <div class="q">“how do I get home tonight?”</div>
+  <div class="ans">{answer}</div>
+</div>
+<div class="cap" style="left:96px; top:800px; width:500px">The model cites with markers; each cited span is matched back to the partition it came from, and colored by the account that owns it.</div>
+<div class="wire" style="left:640px; top:662px; color:#77756f">this answer, by whose words it was sewn from</div>
+<div class="cap" style="left:640px; top:792px; width:430px">Each share is priced against the turn’s real token cost and <b>credited to its owner as a royalty</b>: fair use, settled at the retrieval layer.</div>
+<div class="label" style="left:1112px; top:604px; width:396px">
+  <div class="wire" style="position:static; color:{BLUE}">BlueSky · the posts this answer used</div>{posts}
+  <div class="cap" style="position:static; margin-top:10px">real accounts, real people: something to check, not a voice to trust</div>
+</div>
+{card(70, 954, 720, 260, head(step(3) + "Sewing, not sourcing", GOLD, "WHY IT MATTERED"))}
+<div class="label pts" style="left:96px; top:1004px; width:670px">
+  <p><b>The model stitched; it was not the source.</b> An answer became a seam between people, each thread traceable to someone who wrote it.</p>
+  <p><b>Personal, by construction.</b> The same layer that paid authors showed you whose words were shaping what you read, including your own.</p>
+  <p><b>Verify, don’t trust.</b> A black box can lead you somewhere wrong, sometimes on purpose; a cited span you can open and check is a guard against that.</p>
+</div>
+{card(810, 954, 720, 260, head(step(4) + "Why the graph was set aside", LINE, "PRIVACY FIRST"))}
+<div class="label pts" style="left:836px; top:1004px; width:670px">
+  <p><b>Inserts linked in place; deletes did not.</b> A deleted node was only marked: its text and full vector stayed in the graph, and links still pointed at it, until a compaction rebuilt it.</p>
+  <p><b>Forgetting has to be immediate.</b> Per-document PQ indices drop a document’s whole index the moment it is removed, and the save is not deferred.</p>
+  <p><b>Worth bringing back</b>, once deletion can be as clean as insertion.</p>
+</div>
+<svg width="{W}" height="1300">{"".join(s)}</svg>
+{"".join(labels)}"""
+    return plate("credibility.png", 1290, "RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · THE CREDIBILITY LAYER",
+                 "Who said it", "an answer, traced back to the people whose words it was sewn from",
+                 body, "the posts, accounts and shares are illustrative; the firehose, spans and royalties are Seer’s")
+
+
+ALL = ["sewn_thread_seam", "thread_inside", "partition_index", "first_index", "lineage", "credibility"]
 
 
 def main():
