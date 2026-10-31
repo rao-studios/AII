@@ -173,6 +173,20 @@ final class Flow2_GitaCreditTests: XCTestCase {
         }
     }
 
+    func testSmallIsPricedAtList() {
+        // Mistral Small 4 lists at $0.15 / 1M prompt and $0.60 / 1M completion. The
+        // non-reasoning chat model (`-latest`) and a dated release bill the same.
+        for model in ["mistral-small", ModelConfig.directMistralModel, "mistral-small-2603"] {
+            let small = Gita.ModelCatalog.pricing(for: model)
+            XCTAssertEqual(small.promptCreditsPerToken,
+                           Gita.CreditConversion.fromDollars(0.15) / 1_000_000, accuracy: 1e-12, model)
+            XCTAssertEqual(small.completionCreditsPerToken,
+                           Gita.CreditConversion.fromDollars(0.60) / 1_000_000, accuracy: 1e-12, model)
+        }
+        XCTAssertNotNil(Gita.ModelCatalog.pricing[ModelConfig.directMistralModel],
+            "the non-reasoning chat model has its own row, not the Medium fallback")
+    }
+
     func testTheHostedDefaultHasItsOwnRow() {
         XCTAssertNotNil(Gita.ModelCatalog.pricing[ModelConfig.defaultMistralModel],
             "the hosted chat default must be priced explicitly, never by the medium fallback")

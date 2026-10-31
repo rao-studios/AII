@@ -113,6 +113,7 @@ overrides.
 | Job | Resolver | Env var | Default |
 |-----|----------|---------|---------|
 | Chat (mistral) | `chatModel(for:)` | `SEWN_CHAT_MODEL` | `mistral-large-4` |
+| Chat (mistral), no reasoning | a client's request `model` (Ambient's Reasoning off) | — | `directMistralModel` = `mistral-small-latest` |
 | Chat (tinker) | `chatModel(for:)` | `TINKER_MODEL` | `thinkingmachines/Inkling-Small` |
 | Chat (local) | `chatModel(for:)` | a client's choice (`chooseLocalModel`: a warm, or an on-device request naming one), else `SEWN_LOCAL_MODEL` | `mlx-community/Mistral-Nemo-Instruct-2407-4bit` |
 | Utility one-shots | `utilityModel(for:)` | `UTILITY_MODEL` | `mistral-tiny` |
@@ -120,7 +121,7 @@ overrides.
 | `/v1/code/complete` (local) | `codingModel(for:)` | `SEWN_LOCAL_CODING_MODEL` | falls back to `chatModel(for: .local)` |
 | Vision | `visionModel` | `VISION_MODEL` | `mistral-medium-latest` |
 | Vision (local) | `localVisionModel` | `SEWN_LOCAL_VISION_MODEL` | `rao-studios/Ministral-3-8B-Instruct-2512-mlx-8bit`, pinned |
-| Realtime opening pass | `openingModel` | `SEWN_REALTIME_OPENING_MODEL` | a fast non-thinking model |
+| Realtime opening pass | `openingModel` | `SEWN_REALTIME_OPENING_MODEL` | `directMistralModel` |
 
 `mistralReasoning(for:)` sorts Mistral models three ways (live-verified 2026-10-30), and
 `mistralReasoningEffort(for:)` sends each the least reasoning it takes:

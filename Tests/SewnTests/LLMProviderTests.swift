@@ -94,6 +94,17 @@ final class ModelConfigProviderTests: XCTestCase {
         }
     }
 
+    func testTheDirectModelAnswersWithoutReasoning() {
+        // A client's "Reasoning off" names it; Medium 3.5 was deprecated 2026-10-31.
+        XCTAssertEqual(ModelConfig.directMistralModel, "mistral-small-latest")
+        XCTAssertTrue(ModelConfig.accepts(ModelConfig.directMistralModel, provider: .mistral))
+        XCTAssertEqual(ModelConfig.mistralReasoningEffort(for: ModelConfig.directMistralModel), "none")
+        XCTAssertFalse(ModelConfig.isThinkingModel(ModelConfig.directMistralModel),
+            "no reasoning to make room for: the client's budget stands")
+        XCTAssertEqual(ModelConfig.resolveChatModel(requested: ModelConfig.directMistralModel, provider: .mistral),
+                       ModelConfig.directMistralModel, "a request naming it is answered by it")
+    }
+
     func testLargeFoursBudgetIsFlooredForItsReasoning() {
         // "low" reasoning alone spent 299 of a 300-token budget (2026-10-30).
         XCTAssertTrue(ModelConfig.isThinkingModel("mistral-large-4"))

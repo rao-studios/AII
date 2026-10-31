@@ -65,7 +65,7 @@ extension Gita {
         // Mistral list pricing as of 2026-10 (per-token, converted from USD):
         //   mistral-large-4 — $1.36 / 1M prompt,  $4.18 / 1M completion
         //   mistral-medium  — $1.50 / 1M prompt,  $7.50 / 1M completion (Medium 3.5)
-        //   mistral-small   — $1.00 / 1M prompt,  $3.00 / 1M completion
+        //   mistral-small   — $0.15 / 1M prompt,  $0.60 / 1M completion (Small 4)
         //   mistral-tiny    — $0.25 / 1M prompt,  $0.25 / 1M completion
         static let pricing: [String: ModelPricing] = [
             // Sewn's default chat model (ModelConfig.defaultMistralModel). Mistral Large 4
@@ -88,16 +88,24 @@ extension Gita {
                 promptCreditsPerToken:     CreditConversion.fromDollars(1.50) / 1_000_000,
                 completionCreditsPerToken: CreditConversion.fromDollars(7.50) / 1_000_000
             ),
-            // The hosted vision default (ModelConfig.visionModel) and Ambient's
-            // "Reasoning off" chat model — same rate as "mistral-medium", priced
-            // explicitly rather than relying on the catalog's medium-rate fallback.
+            // The hosted vision default (ModelConfig.visionModel) — same rate as
+            // "mistral-medium", priced explicitly rather than relying on the
+            // catalog's medium-rate fallback.
             "mistral-medium-latest": .init(
                 promptCreditsPerToken:     CreditConversion.fromDollars(1.50) / 1_000_000,
                 completionCreditsPerToken: CreditConversion.fromDollars(7.50) / 1_000_000
             ),
+            // Mistral Small 4 (26.03) lists at $0.15 / $0.60 per 1M tokens (docs.mistral.ai
+            // pricing, 2026-10-31); the old $1 / $3 was Small 1's. `mistral-small-latest` is
+            // ModelConfig.directMistralModel — Ambient's "Reasoning off" chat and the realtime
+            // opening pass — which had no row and so billed at the Medium fallback.
             "mistral-small": .init(
-                promptCreditsPerToken:     CreditConversion.fromDollars(1.00) / 1_000_000,
-                completionCreditsPerToken: CreditConversion.fromDollars(3.00) / 1_000_000
+                promptCreditsPerToken:     CreditConversion.fromDollars(0.15) / 1_000_000,
+                completionCreditsPerToken: CreditConversion.fromDollars(0.60) / 1_000_000
+            ),
+            "mistral-small-latest": .init(
+                promptCreditsPerToken:     CreditConversion.fromDollars(0.15) / 1_000_000,
+                completionCreditsPerToken: CreditConversion.fromDollars(0.60) / 1_000_000
             ),
             "mistral-tiny": .init(
                 promptCreditsPerToken:     CreditConversion.fromDollars(0.25) / 1_000_000,
@@ -112,12 +120,13 @@ extension Gita {
         ]
 
         /// Returns pricing for the given model identifier. Any `mistral-large*` id
-        /// (a dated release, `-latest`) bills at Large 4's rate; fine-tuned Tinker
-        /// checkpoints (`tinker://…`) at inkling rates; anything else unknown falls
-        /// back to `mistral-medium`.
+        /// (a dated release, `-latest`) bills at Large 4's rate, any `mistral-small*`
+        /// (`-2603`) at Small 4's; fine-tuned Tinker checkpoints (`tinker://…`) at
+        /// inkling rates; anything else unknown falls back to `mistral-medium`.
         static func pricing(for model: String) -> ModelPricing {
             if let exact = pricing[model] { return exact }
             if model.hasPrefix("mistral-large") { return pricing["mistral-large-4"]! }
+            if model.hasPrefix("mistral-small") { return pricing["mistral-small"]! }
             if model.hasPrefix("tinker://") { return pricing["thinkingmachines/Inkling-Small"]! }
             return pricing["mistral-medium"]!
         }

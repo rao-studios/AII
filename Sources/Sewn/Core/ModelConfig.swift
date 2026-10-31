@@ -25,6 +25,11 @@ enum ModelConfig {
     /// the answer as typed content arrays (`Requests.Chat.MistralContent` keeps the text),
     /// and its token budget is floored like any thinking model's (`isThinkingModel`).
     static let defaultMistralModel = "mistral-large-4"
+    /// The Mistral chat model that answers without reasoning: Small 4, with
+    /// `reasoning_effort` "none" (`MistralReasoning.optional`). What a client's
+    /// "Reasoning off" names per request (Ambient's Settings › Voice). Medium 3.5
+    /// was that model until Mistral deprecated it, 2026-10-31.
+    static let directMistralModel = "mistral-small-latest"
 
     /// Internal one-shot generations (compact, Sinatra sentiment, auto-memory,
     /// summarize) run on a fast, non-thinking model. Inkling must never double
@@ -211,12 +216,12 @@ enum ModelConfig {
     /// Model that speaks the realtime route's instant opening while retrieval
     /// and the grounded pass run. Must be fast and non-thinking — the opening
     /// exists to cover the primary model's deliberation, so routing it through
-    /// a thinking model would defeat the point. `mistral-small-latest` over
+    /// a thinking model would defeat the point. `directMistralModel` over
     /// `utilityModel` (mistral-tiny): the opening is user-visible prose, not an
     /// extraction job.
     static var openingModel: String {
         ProcessInfo.processInfo.environment["SEWN_REALTIME_OPENING_MODEL"]
-            ?? "mistral-small-latest"
+            ?? directMistralModel
     }
 
     static let defaultCodingModel = "codestral-latest"
