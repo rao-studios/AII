@@ -64,7 +64,7 @@ extension Gita {
     enum ModelCatalog {
         // Mistral list pricing as of 2026-10 (per-token, converted from USD):
         //   mistral-large-4 — $1.36 / 1M prompt,  $4.18 / 1M completion
-        //   mistral-medium  — $3.00 / 1M prompt,  $9.00 / 1M completion
+        //   mistral-medium  — $1.50 / 1M prompt,  $7.50 / 1M completion (Medium 3.5)
         //   mistral-small   — $1.00 / 1M prompt,  $3.00 / 1M completion
         //   mistral-tiny    — $0.25 / 1M prompt,  $0.25 / 1M completion
         static let pricing: [String: ModelPricing] = [
@@ -81,16 +81,19 @@ extension Gita {
                 promptCreditsPerToken:     CreditConversion.fromDollars(1.36) / 1_000_000,
                 completionCreditsPerToken: CreditConversion.fromDollars(4.18) / 1_000_000
             ),
+            // Mistral Medium 3.5 (26.04) lists at $1.50 / $7.50 per 1M tokens; the old
+            // $3 / $9 was Medium 1.0's. Deprecated by Mistral on 2026-10-31 (Large 4 is
+            // its named successor), still served until it retires.
             "mistral-medium": .init(
-                promptCreditsPerToken:     CreditConversion.fromDollars(3.00) / 1_000_000,
-                completionCreditsPerToken: CreditConversion.fromDollars(9.00) / 1_000_000
+                promptCreditsPerToken:     CreditConversion.fromDollars(1.50) / 1_000_000,
+                completionCreditsPerToken: CreditConversion.fromDollars(7.50) / 1_000_000
             ),
-            // The hosted vision default (ModelConfig.visionModel) — same rate as
-            // "mistral-medium", priced explicitly rather than relying on the
-            // catalog's medium-rate fallback.
+            // The hosted vision default (ModelConfig.visionModel) and Ambient's
+            // "Reasoning off" chat model — same rate as "mistral-medium", priced
+            // explicitly rather than relying on the catalog's medium-rate fallback.
             "mistral-medium-latest": .init(
-                promptCreditsPerToken:     CreditConversion.fromDollars(3.00) / 1_000_000,
-                completionCreditsPerToken: CreditConversion.fromDollars(9.00) / 1_000_000
+                promptCreditsPerToken:     CreditConversion.fromDollars(1.50) / 1_000_000,
+                completionCreditsPerToken: CreditConversion.fromDollars(7.50) / 1_000_000
             ),
             "mistral-small": .init(
                 promptCreditsPerToken:     CreditConversion.fromDollars(1.00) / 1_000_000,

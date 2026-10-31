@@ -161,6 +161,18 @@ final class Flow2_GitaCreditTests: XCTestCase {
             "Large 4 undercuts Medium's list price; a copied medium row would be a regression")
     }
 
+    func testMediumIsPricedAtList() {
+        // Mistral Medium 3.5 lists at $1.50 / 1M prompt and $7.50 / 1M completion; the
+        // `-latest` alias (vision, and Ambient's "Reasoning off" chat) bills the same.
+        for model in ["mistral-medium", "mistral-medium-latest"] {
+            let medium = Gita.ModelCatalog.pricing(for: model)
+            XCTAssertEqual(medium.promptCreditsPerToken,
+                           Gita.CreditConversion.fromDollars(1.50) / 1_000_000, accuracy: 1e-12, model)
+            XCTAssertEqual(medium.completionCreditsPerToken,
+                           Gita.CreditConversion.fromDollars(7.50) / 1_000_000, accuracy: 1e-12, model)
+        }
+    }
+
     func testTheHostedDefaultHasItsOwnRow() {
         XCTAssertNotNil(Gita.ModelCatalog.pricing[ModelConfig.defaultMistralModel],
             "the hosted chat default must be priced explicitly, never by the medium fallback")
