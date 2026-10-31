@@ -20,6 +20,32 @@ struct StreamDelta: Codable {
     let content: String?
     /// SinatraHarness's report for an on-device turn: arrives once, after the text, with no content.
     var sinatra: LocalSinatraDiagnostics? = nil
+    /// A reasoning model's thinking (Large 4), kept out of `content`.
+    var reasoning: String? = nil
+}
+
+/// A hosted provider answered a stream request with a non-2xx status. The body is an error
+/// object, not SSE, so before this check the stream just ended with no text: every Large 4
+/// turn from 2026-10-29 was a swallowed 400 that reached Ambient as an empty reply.
+struct HostedStreamRejected: Error, CustomStringConvertible {
+    static let bodyLimit = 2_048
+
+    let status: Int
+    let body: String
+
+    init(status: Int, body: Data) {
+        self.status = status
+        self.body = String(decoding: body, as: UTF8.self)
+    }
+
+    var description: String { "Provider answered HTTP \(status): \(body)" }
+
+    /// The status when `response` is an HTTP response outside 2xx, else nil.
+    static func failingStatus(_ response: URLResponse) -> Int? {
+        guard let http = response as? HTTPURLResponse,
+              !(200...299).contains(http.statusCode) else { return nil }
+        return http.statusCode
+    }
 }
 
 // MARK: - ModelProvider Streaming
@@ -230,7 +256,7 @@ extension ModelProvider {
             struct Choice: Decodable {
                 struct Delta: Decodable {
                     let role: String?
-                    let content: String?
+                    let content: Requests.Chat.MistralContent?
                 }
                 let delta: Delta?
                 let finishReason: String?
@@ -249,7 +275,9 @@ extension ModelProvider {
                   let choice = chunk.choices?.first else {
                 return (nil, false)
             }
-            let delta = choice.delta.map { StreamDelta(role: $0.role, content: $0.content) }
+            let delta = choice.delta.map {
+                StreamDelta(role: $0.role, content: $0.content?.text, reasoning: $0.content?.thinking)
+            }
             return (delta, choice.finishReason != nil)
         }
 
@@ -270,12 +298,15 @@ extension ModelProvider {
                     #if canImport(FoundationNetworking)
                     // Linux: FoundationNetworking does not expose URLSession.bytes.
                     // Fall back to a single-shot request and parse the buffered SSE body.
-                    let (data, _) = try await withCheckedThrowingContinuation {
+                    let (data, response) = try await withCheckedThrowingContinuation {
                         (cont: CheckedContinuation<(Data, URLResponse), Error>) in
                         URLSession.shared.dataTask(with: urlRequest) { data, response, error in
                             if let error { cont.resume(throwing: error); return }
                             cont.resume(returning: (data ?? Data(), response!))
                         }.resume()
+                    }
+                    if let status = HostedStreamRejected.failingStatus(response) {
+                        throw HostedStreamRejected(status: status, body: data.prefix(HostedStreamRejected.bodyLimit))
                     }
                     if let text = String(data: data, encoding: .utf8) {
                         for line in text.components(separatedBy: "\n") {
@@ -287,7 +318,15 @@ extension ModelProvider {
                     }
                     continuation.finish()
                     #else
-                    let (asyncBytes, _) = try await URLSession.shared.bytes(for: urlRequest)
+                    let (asyncBytes, response) = try await URLSession.shared.bytes(for: urlRequest)
+                    if let status = HostedStreamRejected.failingStatus(response) {
+                        var body = Data()
+                        for try await byte in asyncBytes {
+                            body.append(byte)
+                            if body.count >= HostedStreamRejected.bodyLimit { break }
+                        }
+                        throw HostedStreamRejected(status: status, body: body)
+                    }
                     for try await line in asyncBytes.lines {
                         guard line.hasPrefix("data: ") else { continue }
                         let (delta, done) = handle(String(line.dropFirst(6)))

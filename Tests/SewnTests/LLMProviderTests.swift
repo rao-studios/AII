@@ -78,13 +78,91 @@ final class ModelConfigProviderTests: XCTestCase {
         XCTAssertTrue(ModelConfig.isMistralModel(ModelConfig.defaultMistralModel))
     }
 
-    func testLargeFourRunsWithItsReasoningOff() {
-        XCTAssertEqual(ModelConfig.mistralReasoningEffort(for: ModelConfig.defaultMistralModel), "none")
-        XCTAssertEqual(ModelConfig.mistralReasoningEffort(for: "mistral-large-4-0"), "none")
+    func testEachMistralModelGetsTheLeastReasoningItTakes() {
+        // Large 4 must reason: Mistral 400s "none" since 2026-10-29 ("supported values: high, low, medium").
+        XCTAssertEqual(ModelConfig.mistralReasoning(for: ModelConfig.defaultMistralModel), .mandatory)
+        XCTAssertEqual(ModelConfig.mistralReasoningEffort(for: ModelConfig.defaultMistralModel), "low")
+        XCTAssertEqual(ModelConfig.mistralReasoningEffort(for: "mistral-large-4-0"), "low")
+        // These reason only when asked and 400 "low": reasoning off.
+        for model in ["mistral-medium-latest", "mistral-medium-3-5", "magistral-medium-latest", "mistral-small-latest"] {
+            XCTAssertEqual(ModelConfig.mistralReasoning(for: model), .optional, model)
+            XCTAssertEqual(ModelConfig.mistralReasoningEffort(for: model), "none", model)
+        }
         // These answer 400 "reasoning_effort is not enabled for this model".
-        for model in ["mistral-tiny", "codestral-latest", "mistral-large-latest", "mistral-medium-latest"] {
+        for model in ["mistral-tiny", "codestral-latest", "mistral-large-latest"] {
             XCTAssertNil(ModelConfig.mistralReasoningEffort(for: model), model)
         }
+    }
+
+    func testLargeFoursBudgetIsFlooredForItsReasoning() {
+        // "low" reasoning alone spent 299 of a 300-token budget (2026-10-30).
+        XCTAssertTrue(ModelConfig.isThinkingModel("mistral-large-4"))
+        XCTAssertEqual(ModelConfig.chatMaxTokens(requested: 80, model: "mistral-large-4"),
+                       ModelConfig.thinkingTokenFloor)
+        XCTAssertEqual(ModelConfig.chatMaxTokens(requested: 80, model: "mistral-large-latest"), 80)
+        XCTAssertFalse(ModelConfig.isThinkingModel("mistral-tiny"))
+    }
+
+    func testAReasoningMessageKeepsOnlyItsAnswerText() throws {
+        // Large 4's non-stream reply shape, 2026-10-30.
+        let json = """
+        {"role":"assistant","tool_calls":null,"content":[
+          {"type":"thinking","thinking":[{"type":"text","text":"The user wants a greeting."}]},
+          {"type":"text","text":"Hi there, "},{"type":"text","text":"lovely to see you."}]}
+        """
+        let message = try JSONDecoder().decode(Requests.Chat.Get.Message.self, from: Data(json.utf8))
+        XCTAssertEqual(message.content, "Hi there, lovely to see you.")
+
+        let plain = try JSONDecoder().decode(
+            Requests.Chat.Get.Message.self, from: Data(#"{"role":"assistant","content":"Hello."}"#.utf8))
+        XCTAssertEqual(plain.content, "Hello.")
+        let toolOnly = try JSONDecoder().decode(
+            Requests.Chat.Get.Message.self, from: Data(#"{"role":"assistant","content":null}"#.utf8))
+        XCTAssertEqual(toolOnly.content, "")
+    }
+
+    func testAThinkingOnlyStreamChunkCarriesNoText() throws {
+        func text(_ content: String) throws -> String? {
+            try JSONDecoder().decode(Requests.Chat.MistralContent.self, from: Data(content.utf8)).text
+        }
+        XCTAssertNil(try text(#"[{"type":"thinking","thinking":[{"type":"text","text":"Hmm"}],"closed":true}]"#))
+        XCTAssertEqual(try text(#"[{"type":"text","text":"A warm cup"}]"#), "A warm cup")
+        XCTAssertEqual(try text(#"" for me.""#), " for me.")
+        XCTAssertNil(try text("null"))
+    }
+
+    func testThinkingIsKeptApartFromTheAnswer() throws {
+        func content(_ json: String) throws -> Requests.Chat.MistralContent {
+            try JSONDecoder().decode(Requests.Chat.MistralContent.self, from: Data(json.utf8))
+        }
+        let thought = try content(#"[{"type":"thinking","thinking":[{"type":"text","text":"The user "},{"type":"text","text":"is tired."}]}]"#)
+        XCTAssertEqual(thought.thinking, "The user is tired.")
+        XCTAssertNil(thought.text)
+        let answer = try content(#"[{"type":"text","text":"Tea, then bed."}]"#)
+        XCTAssertNil(answer.thinking)
+        XCTAssertEqual(answer.text, "Tea, then bed.")
+        XCTAssertNil(try content(#""plain""#).thinking)
+    }
+
+    func testTheWireCarriesReasoningOnlyWhenThereIsSome() throws {
+        func json(_ delta: ChatCompletionDelta) throws -> [String: Any] {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(delta)) as? [String: Any])
+        }
+        XCTAssertNil(try json(ChatCompletionDelta(role: nil, content: "Hi"))["reasoning"])
+        let thinking = try json(ChatCompletionDelta(role: nil, content: nil, reasoning: "Hmm"))
+        XCTAssertEqual(thinking["reasoning"] as? String, "Hmm")
+        XCTAssertNil(thinking["content"])
+    }
+
+    func testOnlyAFailingHTTPStatusRejectsAStream() throws {
+        let url = try XCTUnwrap(URL(string: "https://api.mistral.ai/v1/chat/completions"))
+        func response(_ status: Int) -> URLResponse {
+            HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!
+        }
+        XCTAssertNil(HostedStreamRejected.failingStatus(response(200)))
+        XCTAssertEqual(HostedStreamRejected.failingStatus(response(400)), 400)
+        let rejected = HostedStreamRejected(status: 400, body: Data(#"{"message":"reasoning_effort none"}"#.utf8))
+        XCTAssertEqual(rejected.description, #"Provider answered HTTP 400: {"message":"reasoning_effort none"}"#)
     }
 
     func testOnlyALargeFourRequestCarriesReasoningEffort() throws {
@@ -92,7 +170,7 @@ final class ModelConfigProviderTests: XCTestCase {
             let data = try JSONEncoder().encode(Requests.Chat.Get(model: model, messages: []))
             return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         }
-        XCTAssertEqual(try body("mistral-large-4")["reasoning_effort"] as? String, "none")
+        XCTAssertEqual(try body("mistral-large-4")["reasoning_effort"] as? String, "low")
         XCTAssertNil(try body("mistral-tiny")["reasoning_effort"])
     }
 

@@ -13,6 +13,9 @@ import Foundation
 struct ChatCompletionDelta: Codable {
     var role: String?
     var content: String?
+    /// A reasoning model's thinking, apart from `content`: it streams before the answer
+    /// and is never part of the reply. Absent for models that don't reason.
+    var reasoning: String? = nil
 }
 
 struct ChatCompletionChoiceDelta: Codable {

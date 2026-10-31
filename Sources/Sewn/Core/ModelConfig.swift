@@ -21,9 +21,9 @@ enum ModelConfig {
     /// Thread extracts with too, so a machine that has it pays nothing to switch.
     static let defaultLocalModel = AIIModels.generalStandard.id
     static let defaultTinkerModel = "thinkingmachines/Inkling-Small"
-    /// Large 4 runs with its reasoning off (`mistralReasoningEffort`): left on, it streams
-    /// that reasoning and the first answer token as typed content arrays the decoders drop,
-    /// and 86% of Ambient's replies came back empty (2026-10-17).
+    /// Large 4 always reasons now (`mistralReasoningEffort`): it streams that reasoning and
+    /// the answer as typed content arrays (`Requests.Chat.MistralContent` keeps the text),
+    /// and its token budget is floored like any thinking model's (`isThinkingModel`).
     static let defaultMistralModel = "mistral-large-4"
 
     /// Internal one-shot generations (compact, Sinatra sentiment, auto-memory,
@@ -41,12 +41,39 @@ enum ModelConfig {
             || lowered.hasPrefix("ministral") || lowered.hasPrefix("codestral")
     }
 
-    /// `reasoning_effort` for a Mistral chat request: "none" for Large 4, whose reasoning
-    /// otherwise eats the token budget before the answer (Large 4 takes only "none" or
-    /// "high"). Nil for everything else: mistral-tiny, codestral and mistral-large-latest
-    /// answer 400 "reasoning_effort is not enabled for this model" (live-verified 2026-10-17).
+    /// How a Mistral model reasons, live-verified 2026-10-30.
+    enum MistralReasoning: Equatable {
+        /// Always reasons: Large 4 takes only "low" | "medium" | "high" (Mistral dropped
+        /// "none" between 2026-10-28 and 10-29, and every hosted turn came back empty).
+        case mandatory
+        /// Reasons only when asked: Medium, Magistral and Small take "none" | "high"
+        /// ("low" is a 400).
+        case optional
+        /// No `reasoning_effort` at all: mistral-tiny, codestral and mistral-large-latest
+        /// answer 400 "reasoning_effort is not enabled for this model".
+        case unsupported
+    }
+
+    static func mistralReasoning(for model: String) -> MistralReasoning {
+        let lowered = model.lowercased()
+        if lowered.hasPrefix("mistral-large-4") { return .mandatory }
+        if lowered.hasPrefix("mistral-medium") || lowered.hasPrefix("magistral")
+            || lowered == "mistral-small-latest" || lowered == "mistral-small-2603" {
+            return .optional
+        }
+        return .unsupported
+    }
+
+    /// `reasoning_effort` for a Mistral chat request: the least each model takes. A
+    /// mandatory reasoner gets "low" (~80–120 reasoning tokens, ~1 s before the first answer
+    /// token, 2026-10-30) and streams its thinking apart from the answer
+    /// (`Requests.Chat.MistralContent`); an optional one gets "none", so it answers at once.
     static func mistralReasoningEffort(for model: String) -> String? {
-        model.lowercased().hasPrefix("mistral-large-4") ? "none" : nil
+        switch mistralReasoning(for: model) {
+        case .mandatory: return "low"
+        case .optional: return "none"
+        case .unsupported: return nil
+        }
     }
 
     private static func environment(_ key: String) -> String? {
@@ -208,11 +235,13 @@ enum ModelConfig {
     static let thinkingTokenFloor = 4_096
 
     /// True for models that emit thinking before their response (Inkling, any
-    /// tinker:// checkpoint, and Qwen3 hybrids without the `/no_think` switch).
+    /// tinker:// checkpoint, Qwen3 hybrids without the `/no_think` switch, and Mistral
+    /// Large 4, whose "low" reasoning alone spent 299 of a 300-token budget, 2026-10-30).
     static func isThinkingModel(_ model: String) -> Bool {
         model.localizedCaseInsensitiveContains("inkling")
             || model.hasPrefix("tinker://")
             || supportsNoThinkSwitch(model)
+            || mistralReasoning(for: model) == .mandatory
     }
 
     /// Qwen3 hybrid models honor a `/no_think` soft switch in the prompt that

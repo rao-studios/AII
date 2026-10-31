@@ -122,10 +122,20 @@ overrides.
 | Vision (local) | `localVisionModel` | `SEWN_LOCAL_VISION_MODEL` | `rao-studios/Ministral-3-8B-Instruct-2512-mlx-8bit`, pinned |
 | Realtime opening pass | `openingModel` | `SEWN_REALTIME_OPENING_MODEL` | a fast non-thinking model |
 
-Large 4 reasons before it answers unless told not to; `mistralReasoningEffort(for:)` sends
-`reasoning_effort: "none"` on every `mistral-large-4*` chat request, streamed or not. Left on, its reasoning
-and first answer token arrive as typed content arrays the decoders drop (empty replies). Only send the field
-to models that take it: mistral-tiny, codestral and mistral-large-latest answer 400.
+`mistralReasoning(for:)` sorts Mistral models three ways (live-verified 2026-10-30), and
+`mistralReasoningEffort(for:)` sends each the least reasoning it takes:
+
+| Kind | Models | `reasoning_effort` |
+|---|---|---|
+| `.mandatory` | `mistral-large-4*` (since 2026-10-29 `"none"` is a 400) | `"low"` |
+| `.optional` | `mistral-medium*`, `magistral*`, `mistral-small-latest`/`-2603` (`"low"` is a 400) | `"none"` |
+| `.unsupported` | mistral-tiny, codestral, mistral-large-latest (the field is a 400) | omitted |
+
+A mandatory reasoner's thinking and answer arrive as typed content arrays: `Requests.Chat.MistralContent`
+splits them, the answer stays `content`, and the thinking streams to the client as `delta.reasoning` on
+`/v1/chat/completions` (Ambient shows it apart; it is never spoken, cited or stored). `isThinkingModel` floors
+its token budget so the reasoning can't eat the answer. A non-2xx stream throws `HostedStreamRejected` (the
+client gets an error event) instead of ending as an empty reply.
 
 Key members:
 

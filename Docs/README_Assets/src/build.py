@@ -29,14 +29,17 @@ SANS = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-s
 MONO = "Menlo, 'SF Mono', monospace"
 
 
-def shoot(browser, page_html, path, selector=None, viewport=(1200, 800), scale=2):
-    """Writes `page_html` beside the inputs (so relative URLs resolve) and screenshots it."""
+def shoot(browser, page_html, path, selector=None, viewport=(1200, 800), scale=2, prepare=None):
+    """Writes `page_html` beside the inputs (so relative URLs resolve) and screenshots it, after `prepare`
+    (JavaScript) has run."""
     with tempfile.NamedTemporaryFile("w", suffix=".html", dir=HERE, delete=False, encoding="utf-8") as f:
         f.write(page_html)
         name = f.name
     try:
         page = browser.new_page(device_scale_factor=scale, viewport={"width": viewport[0], "height": viewport[1]})
         page.goto("file://" + name)
+        if prepare:
+            page.evaluate(prepare)
         page.wait_for_timeout(150)
         if selector:
             page.locator(selector).screenshot(path=path)
@@ -121,6 +124,16 @@ def hero_graph():
     return "".join(edges), dots + "".join(shared)
 
 
+# The mark's ink, the lanes, the subtitle and the legend start at x 54.5.
+# The title's and the subtitle's first ink sit on EDGE: an italic first glyph overhangs, or sits in, by its own
+# amount, so the page measures it with the font and places each line by it.
+EDGE = 54.5
+ALIGN = f"""document.fonts.ready.then(() => {{ const ctx = document.createElement('canvas').getContext('2d');
+    for (const el of document.querySelectorAll('.title, .sub')) {{ const cs = getComputedStyle(el), text = el.textContent.trim();
+        ctx.font = `italic ${{cs.fontWeight}} ${{cs.fontSize}} Playfair`;
+        el.style.left = ({EDGE} - parseFloat(cs.paddingLeft) + ctx.measureText(text[0]).actualBoundingBoxLeft) + 'px'; }} }})"""
+
+
 def hero(browser):
     strands = "".join(
         f'<path d="{strand_path(row, phase)}" fill="none" stroke="{colour}" stroke-width="3.6" stroke-linecap="round"/>'
@@ -160,7 +173,7 @@ svg {{ position: absolute; left: 0; top: 0; }}
   <span class="tag">graph and vectors, on-device, one install</span>
 </div>
 </body></html>"""
-    shoot(browser, page, os.path.join(OUT, "hero.png"), viewport=(1200, 630))
+    shoot(browser, page, os.path.join(OUT, "hero.png"), viewport=(1200, 630), prepare=ALIGN)
 
 
 # MARK: Shared sheet styles (Braid's legend and CLI guide)

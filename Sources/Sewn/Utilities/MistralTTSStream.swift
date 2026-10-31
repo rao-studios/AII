@@ -18,7 +18,7 @@ import FoundationNetworking
 /// WebSocket route can synthesize per-sentence without going through HTTP.
 /// `/v1/speak` remains a thin caller — its wire format is unchanged.
 enum MistralTTS {
-    static let defaultModel = "voxtral-mini-tts-2603"
+    static let defaultModel = "voxtral-mini-tts-3-0"
     static let sampleRate: UInt32 = 24_000
 
     enum TTSError: Error {

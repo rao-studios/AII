@@ -141,11 +141,12 @@ func handleChatStreamCompletions(
 
             var isFirst = true
             var firstTokenNs: UInt64?
+            var firstThoughtNs: UInt64?
             var rawText = ""            // full model output, markers included
             var accumulatedText = ""    // user-visible text (markers stripped)
             var markerFilter = Gita.MarkerStreamFilter()
 
-            func emit(content: String?, role: String?) {
+            func emit(content: String?, role: String?, reasoning: String? = nil) {
                 let chunk = ChatCompletionChunkResponse(
                     id: responseId,
                     created: created,
@@ -153,7 +154,7 @@ func handleChatStreamCompletions(
                     choices: [
                         ChatCompletionChoiceDelta(
                             index: 0,
-                            delta: ChatCompletionDelta(role: role, content: content),
+                            delta: ChatCompletionDelta(role: role, content: content, reasoning: reasoning),
                             finishReason: nil
                         )
                     ],
@@ -173,6 +174,16 @@ func handleChatStreamCompletions(
                 if let sinatra = delta.sinatra {
                     sinatraDiagnostics = sinatra
                     continue
+                }
+                // A reasoning model's thinking rides its own field, never the reply: the
+                // client shows it apart, and none of it is spoken, cited or stored.
+                if let reasoning = delta.reasoning, !reasoning.isEmpty {
+                    if firstThoughtNs == nil {
+                        let now = DispatchTime.now().uptimeNanoseconds
+                        firstThoughtNs = now
+                        logger.info("[timing] first thought \((now - handlerStartNs) / 1_000_000)ms")
+                    }
+                    emit(content: nil, role: isFirst ? "assistant" : nil, reasoning: reasoning)
                 }
                 // Strip [[n]] citation markers before anything reaches the
                 // client; the filter holds back partial markers split across

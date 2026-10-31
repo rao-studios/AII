@@ -211,6 +211,50 @@ extension Requests.Chat {
                 self.toolCalls = nil
                 self.content = content
             }
+
+            init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                role = try values.decode(String.self, forKey: .role)
+                toolCalls = try values.decodeIfPresent([ToolCall].self, forKey: .toolCalls)
+                content = try values.decodeIfPresent(MistralContent.self, forKey: .content)?.text ?? ""
+            }
+        }
+    }
+
+    /// A Mistral message's (or stream delta's) `content`: a plain string, or, from a
+    /// reasoning model (Large 4), an array of typed parts — `{"type":"thinking","thinking":
+    /// [{"type":"text","text":…}]}` then `{"type":"text","text":…}`. The text parts are the
+    /// answer; the thinking is kept apart so it never reaches the reply (or the voice).
+    /// Each is nil when the content has no part of that kind.
+    struct MistralContent: Decodable {
+        let text: String?
+        let thinking: String?
+
+        private struct Part: Decodable {
+            struct Inner: Decodable {
+                let text: String?
+            }
+            let type: String
+            let text: String?
+            let thinking: [Inner]?
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            if container.decodeNil() {
+                text = nil
+                thinking = nil
+            } else if let string = try? container.decode(String.self) {
+                text = string
+                thinking = nil
+            } else {
+                let parts = try container.decode([Part].self)
+                let answer = parts.filter { $0.type == "text" }
+                let thought = parts.filter { $0.type == "thinking" }
+                text = answer.isEmpty ? nil : answer.compactMap(\.text).joined()
+                thinking = thought.isEmpty
+                    ? nil : thought.flatMap { $0.thinking ?? [] }.compactMap(\.text).joined()
+            }
         }
     }
 }
