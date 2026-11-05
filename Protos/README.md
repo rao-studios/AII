@@ -618,12 +618,13 @@ filters by owner, group and media type only, so the kind filter runs in AII, ove
 | Filer | Kinds | Document ids | Groups on the wire |
 | --- | --- | --- | --- |
 | Ambient | `reading`, `manifest`, `turn`, `insight`, `note` | `ambient/reading/<16 hex>`, `ambient/manifest/<16 hex>`, `ambient/turn/<uuid>`, `ambient/insight/<uuid>`, `ambient/note/<16 hex>` | `ambient-reading-<owner>`, `ambient-interaction-<owner>`, `ambient-seer-<owner>` |
-| Craft | `convention`, `approach`, `note`, `ledger`, `instructions`, `settings`, `code` | `craft/<kind>/<project>.<record>.<version>` for a record, `<project>.<version>` for a ledger, instructions or settings, `<scope>.<path>.<hash>` for code: each version is its own id | `craft-conventions`, `craft-records`, `craft-memory`, `craft-code-<scope>` |
+| Craft | `project`, `approach`, `lesson`, `note`, `instruction`, `ledger`, `settings`, `code` | `craft/<kind>/<project>.<record>.<version>` for a record, `<project>.<version>` for a ledger or settings, `<scope>.<path>.<hash>` for code: each version is its own id ([`Schema/Craft`](../Schema/Craft/Storage.md)) | `craft-records`, `craft-project`, `craft-code-<scope>` |
 | Veil | `image` | `veil/image/img-<32 hex>` | `veil-<12 hex>`, one per picture set |
 | Sewn | `memory` | `<app>/memory/<id>` | `<app>-memory-<owner>`, `<app>-resonance-<owner>` |
 | Notes | `note` | `notes/note/<id>` | `notes-notes` |
 
-The vocabulary is open: a new kind needs no change here, only a name that follows the rule.
+The vocabulary is open: a new kind needs no change here, only a name that follows the rule. An app that files into
+AII documents what it files in its folder under [`Schema/`](../Schema/README.md).
 
 ## Regenerating
 

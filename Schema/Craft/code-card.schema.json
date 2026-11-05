@@ -1,0 +1,568 @@
+{
+  "$defs" : {
+    "card" : {
+      "properties" : {
+        "access" : {
+          "enum" : [
+            "private",
+            "fileprivate",
+            "internal",
+            "package",
+            "public",
+            "open"
+          ],
+          "type" : "string"
+        },
+        "at" : {
+          "properties" : {
+            "endLine" : {
+              "type" : "integer"
+            },
+            "path" : {
+              "type" : "string"
+            },
+            "startLine" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "path",
+            "startLine",
+            "endLine"
+          ],
+          "type" : "object"
+        },
+        "attributes" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "body" : {
+          "type" : "string"
+        },
+        "calls" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "cases" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "conforms" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "declaration" : {
+          "type" : "string"
+        },
+        "declares" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "doc" : {
+          "type" : "string"
+        },
+        "extra" : {
+          "additionalProperties" : {
+            "type" : "string"
+          },
+          "type" : "object"
+        },
+        "generics" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "imports" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "inherits" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "inside" : {
+          "properties" : {
+            "declaration" : {
+              "type" : "string"
+            },
+            "name" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "declaration",
+            "name"
+          ],
+          "type" : "object"
+        },
+        "kind" : {
+          "enum" : [
+            "fn",
+            "type",
+            "file",
+            "window"
+          ],
+          "type" : "string"
+        },
+        "language" : {
+          "description" : "the language this scope is written in, from the file's extension",
+          "enum" : [
+            "swift",
+            "rust",
+            "markdown",
+            "json",
+            "yaml",
+            "toml",
+            "shell",
+            "python",
+            "javascript",
+            "typescript",
+            "c",
+            "cpp",
+            "objc",
+            "go",
+            "java",
+            "kotlin",
+            "ruby",
+            "plist",
+            "text",
+            "other",
+            "css",
+            "html",
+            "metal"
+          ],
+          "type" : "string"
+        },
+        "members" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "modifiers" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "module" : {
+          "type" : "string"
+        },
+        "name" : {
+          "type" : "string"
+        },
+        "omitted" : {
+          "additionalProperties" : {
+            "type" : "integer"
+          },
+          "type" : "object"
+        },
+        "part" : {
+          "properties" : {
+            "count" : {
+              "type" : "integer"
+            },
+            "index" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "index",
+            "count"
+          ],
+          "type" : "object"
+        },
+        "purpose" : {
+          "type" : "string"
+        },
+        "returns" : {
+          "properties" : {
+            "primitive" : {
+              "enum" : [
+                "array",
+                "bool",
+                "character",
+                "closure",
+                "data",
+                "date",
+                "dictionary",
+                "double",
+                "float",
+                "int",
+                "never",
+                "opaque",
+                "set",
+                "string",
+                "tuple",
+                "uint",
+                "url",
+                "uuid",
+                "void"
+              ],
+              "type" : "string"
+            },
+            "text" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "text"
+          ],
+          "type" : "object"
+        },
+        "takes" : {
+          "items" : {
+            "properties" : {
+              "isConstant" : {
+                "type" : "boolean"
+              },
+              "isInout" : {
+                "type" : "boolean"
+              },
+              "isVariadic" : {
+                "type" : "boolean"
+              },
+              "label" : {
+                "description" : "argument label; absent = _",
+                "type" : "string"
+              },
+              "name" : {
+                "type" : "string"
+              },
+              "type" : {
+                "properties" : {
+                  "primitive" : {
+                    "enum" : [
+                      "array",
+                      "bool",
+                      "character",
+                      "closure",
+                      "data",
+                      "date",
+                      "dictionary",
+                      "double",
+                      "float",
+                      "int",
+                      "never",
+                      "opaque",
+                      "set",
+                      "string",
+                      "tuple",
+                      "uint",
+                      "url",
+                      "uuid",
+                      "void"
+                    ],
+                    "type" : "string"
+                  },
+                  "text" : {
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "text"
+                ],
+                "type" : "object"
+              }
+            },
+            "required" : [
+              "name"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "uses" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "values" : {
+          "items" : {
+            "properties" : {
+              "isConstant" : {
+                "type" : "boolean"
+              },
+              "isInout" : {
+                "type" : "boolean"
+              },
+              "isVariadic" : {
+                "type" : "boolean"
+              },
+              "label" : {
+                "description" : "argument label; absent = _",
+                "type" : "string"
+              },
+              "name" : {
+                "type" : "string"
+              },
+              "type" : {
+                "properties" : {
+                  "primitive" : {
+                    "enum" : [
+                      "array",
+                      "bool",
+                      "character",
+                      "closure",
+                      "data",
+                      "date",
+                      "dictionary",
+                      "double",
+                      "float",
+                      "int",
+                      "never",
+                      "opaque",
+                      "set",
+                      "string",
+                      "tuple",
+                      "uint",
+                      "url",
+                      "uuid",
+                      "void"
+                    ],
+                    "type" : "string"
+                  },
+                  "text" : {
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "text"
+                ],
+                "type" : "object"
+              }
+            },
+            "required" : [
+              "name"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "wraps" : {
+          "items" : {
+            "properties" : {
+              "name" : {
+                "type" : "string"
+              },
+              "wrappers" : {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              }
+            },
+            "required" : [
+              "name",
+              "wrappers"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "kind",
+        "name"
+      ],
+      "type" : "object"
+    },
+    "check" : {
+      "properties" : {
+        "command" : {
+          "description" : "run from the project root; for runs, what it shows in a few words",
+          "type" : "string"
+        },
+        "directory" : {
+          "description" : "where to run it, relative to the project root; omit for the root. A package you create inside the project must be checked with its own directory, or the check proves only that the host project still builds. A runs check names one: . for the project itself",
+          "type" : "string"
+        },
+        "expectExit" : {
+          "description" : "default 0",
+          "type" : "integer"
+        },
+        "kind" : {
+          "description" : "runs: Craft starts the unit from its own manifest and looks for what outputContains names",
+          "enum" : [
+            "build",
+            "test",
+            "command",
+            "runs"
+          ],
+          "type" : "string"
+        },
+        "outputContains" : {
+          "description" : "text the output must contain; for runs, what a person would see: window, output, exits or serves",
+          "type" : "string"
+        },
+        "pageContains" : {
+          "description" : "runs that serves: words the page must show",
+          "type" : "string"
+        },
+        "route" : {
+          "description" : "runs that serves: the path to open, /about",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "command"
+      ],
+      "type" : "object"
+    },
+    "expectation" : {
+      "properties" : {
+        "access" : {
+          "description" : "at least this visibility. Other languages map onto this ladder: Rust pub→public and pub(crate)→internal; TypeScript export→public and private/#→private; Python name→public, _name→internal, __name→private; Go Capitalised→public",
+          "enum" : [
+            "private",
+            "fileprivate",
+            "internal",
+            "package",
+            "public",
+            "open"
+          ],
+          "type" : "string"
+        },
+        "attributes" : {
+          "description" : "attributes, decorators, annotations or derive macros, without @ or #, e.g. MainActor",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "calls" : {
+          "description" : "functions the scope must call",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "cases" : {
+          "description" : "enum cases",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "conforms" : {
+          "description" : "protocols",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "declaration" : {
+          "description" : "struct|class|actor|enum|protocol|extension|function|initializer — normalized across languages: trait and interface read as protocol, impl as extension, def/fn/func as function",
+          "type" : "string"
+        },
+        "inherits" : {
+          "description" : "superclasses",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "inside" : {
+          "description" : "the enclosing type, e.g. Session",
+          "type" : "string"
+        },
+        "kind" : {
+          "enum" : [
+            "fn",
+            "type"
+          ],
+          "type" : "string"
+        },
+        "mentions" : {
+          "description" : "identifiers the scope's source must contain",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "modifiers" : {
+          "description" : "e.g. static, final",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "name" : {
+          "description" : "fn: Type.method or Type.method(_:label:); type: the type name",
+          "type" : "string"
+        },
+        "op" : {
+          "enum" : [
+            "add",
+            "modify",
+            "remove",
+            "keep"
+          ],
+          "type" : "string"
+        },
+        "returns" : {
+          "description" : "the return type",
+          "type" : "string"
+        },
+        "takes" : {
+          "description" : "parameters in order, e.g. \"_ input: String\", \"at date: Date\"",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "uses" : {
+          "description" : "types the scope must use",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "values" : {
+          "description" : "type cards: properties, e.g. \"turnCount: Int\" or \"let id: UUID\"",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "why" : {
+          "type" : "string"
+        },
+        "wraps" : {
+          "description" : "property wrappers, decorators or annotations on a property, e.g. \"count: @State\"",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "op",
+        "kind",
+        "name"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "craft-card/1",
+  "$ref" : "#/$defs/card",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "description" : "The unit Craft stores (Thread partitions, mediaType \"code\"), retrieves, and checks plans against. Spec: Docs/code-cards.md.",
+  "title" : "Craft code card"
+}

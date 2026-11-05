@@ -54,7 +54,9 @@ public enum AIIRecordError: Error, Equatable, CustomStringConvertible {
 
 public struct AIIRecord: Sendable, Equatable {
 
-    /// What a record is, in an open vocabulary: `note`, `recipe`, `approach`.
+    /// What a record is, in an open vocabulary: `note`, `recipe`, `approach`. The kinds named here are the general ones
+    /// any lane may file; an app's own kinds are its own, spelled by the app (`Protos/README.md`, "Kinds in use", and
+    /// each app's folder under `Schema/`).
     public struct Kind: RawRepresentable, Codable, Hashable, Comparable, Sendable,
                         CustomStringConvertible, ExpressibleByStringLiteral {
         public let rawValue: String
@@ -77,8 +79,6 @@ public struct AIIRecord: Sendable, Equatable {
 
         public static let note: Kind = "note"
         public static let document: Kind = "document"
-        public static let convention: Kind = "convention"
-        public static let approach: Kind = "approach"
         public static let memory: Kind = "memory"
         public static let event: Kind = "event"
         public static let image: Kind = "image"

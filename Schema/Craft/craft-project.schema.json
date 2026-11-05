@@ -1,0 +1,209 @@
+{
+  "$defs" : {
+    "ledgerPayload" : {
+      "properties" : {
+        "ledger" : {
+          "$ref" : "craft-record.schema.json#/$defs/ledger"
+        },
+        "path" : {
+          "description" : "the folder that wrote it, on the machine that wrote it",
+          "type" : "string"
+        },
+        "type" : {
+          "const" : "ledger"
+        }
+      },
+      "required" : [
+        "type",
+        "ledger",
+        "path"
+      ],
+      "type" : "object"
+    },
+    "settingsPayload" : {
+      "properties" : {
+        "format" : {
+          "const" : "craft-settings/1"
+        },
+        "label" : {
+          "type" : "string"
+        },
+        "path" : {
+          "description" : "the folder that wrote it, on the machine that wrote it",
+          "type" : "string"
+        },
+        "project" : {
+          "description" : "the project's id: its first commit (g…), or n-<name>",
+          "type" : "string"
+        },
+        "settings" : {
+          "description" : "the project's layer of Craft's config: the same keys as config.json",
+          "type" : "object"
+        },
+        "writtenAt" : {
+          "description" : "seconds since 1970, to the second: what orders the versions",
+          "type" : "number"
+        }
+      },
+      "required" : [
+        "format",
+        "project",
+        "label",
+        "path",
+        "settings",
+        "writtenAt"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "craft-project/1",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "allOf" : [
+    {
+      "if" : {
+        "properties" : {
+          "kind" : {
+            "const" : "project"
+          }
+        }
+      },
+      "then" : {
+        "description" : "names the entity `record:pj-…`",
+        "properties" : {
+          "id" : {
+            "description" : "the envelope's id; the document's is craft/<kind>/<this>",
+            "pattern" : "^([a-z0-9-]{1,50})\\.pj-[0-9a-f]{16}\\.[0-9a-f]{16}$",
+            "type" : "string"
+          },
+          "payload" : {
+            "$ref" : "craft-record.schema.json#/$defs/record"
+          }
+        }
+      }
+    },
+    {
+      "if" : {
+        "properties" : {
+          "kind" : {
+            "const" : "instruction"
+          }
+        }
+      },
+      "then" : {
+        "description" : "names the entity `record:in-…`",
+        "properties" : {
+          "id" : {
+            "description" : "the envelope's id; the document's is craft/<kind>/<this>",
+            "pattern" : "^([a-z0-9-]{1,50})\\.in-[0-9a-f]{16}\\.[0-9a-f]{16}$",
+            "type" : "string"
+          },
+          "payload" : {
+            "$ref" : "craft-record.schema.json#/$defs/record"
+          }
+        }
+      }
+    },
+    {
+      "if" : {
+        "properties" : {
+          "kind" : {
+            "const" : "ledger"
+          }
+        }
+      },
+      "then" : {
+        "description" : "names the entity `ledger:<project key>`",
+        "properties" : {
+          "id" : {
+            "description" : "the envelope's id; the document's is craft/<kind>/<this>",
+            "pattern" : "^([a-z0-9-]{1,50})\\.[0-9a-f]{16}$",
+            "type" : "string"
+          },
+          "payload" : {
+            "$ref" : "#/$defs/ledgerPayload"
+          }
+        }
+      }
+    },
+    {
+      "if" : {
+        "properties" : {
+          "kind" : {
+            "const" : "settings"
+          }
+        }
+      },
+      "then" : {
+        "description" : "names the entity `settings:<project key>`",
+        "properties" : {
+          "id" : {
+            "description" : "the envelope's id; the document's is craft/<kind>/<this>",
+            "pattern" : "^([a-z0-9-]{1,50})\\.[0-9a-f]{16}$",
+            "type" : "string"
+          },
+          "payload" : {
+            "$ref" : "#/$defs/settingsPayload"
+          }
+        }
+      }
+    }
+  ],
+  "description" : "Every document in craft-project: an aii-record/1 envelope (AII's record schema) of Craft's lane, read by prefix and never searched — the project record, the person's instructions (every project's under the key user), each project's recall ledger and its settings. What is fixed here is what Craft files; the rest of the envelope is AII's. Spec: Schema/Storage.md.",
+  "properties" : {
+    "app" : {
+      "const" : "craft"
+    },
+    "format" : {
+      "const" : "aii-record/1"
+    },
+    "group" : {
+      "properties" : {
+        "id" : {
+          "const" : "project"
+        },
+        "label" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "id"
+      ],
+      "type" : "object"
+    },
+    "kind" : {
+      "enum" : [
+        "project",
+        "instruction",
+        "ledger",
+        "settings"
+      ],
+      "type" : "string"
+    },
+    "source" : {
+      "properties" : {
+        "kind" : {
+          "const" : "app"
+        },
+        "ref" : {
+          "description" : "the folder that wrote it",
+          "type" : "string"
+        }
+      },
+      "type" : "object"
+    },
+    "supersedes" : {
+      "description" : "the envelope id of the version it replaces",
+      "type" : "string"
+    }
+  },
+  "required" : [
+    "format",
+    "app",
+    "id",
+    "kind",
+    "group",
+    "payload"
+  ],
+  "title" : "Craft's project group",
+  "type" : "object"
+}

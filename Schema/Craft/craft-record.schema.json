@@ -1,0 +1,700 @@
+{
+  "$defs" : {
+    "approach" : {
+      "properties" : {
+        "ask" : {
+          "description" : "the person's words",
+          "type" : "string"
+        },
+        "crucial" : {
+          "description" : "observed: failures and their fixes, commands that worked",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "phase" : {
+          "type" : "string"
+        },
+        "summary" : {
+          "description" : "the model's account of what changed",
+          "type" : "string"
+        },
+        "title" : {
+          "description" : "the model's words",
+          "type" : "string"
+        },
+        "verdict" : {
+          "properties" : {
+            "gap" : {
+              "type" : "string"
+            },
+            "note" : {
+              "type" : "string"
+            },
+            "verdict" : {
+              "enum" : [
+                "aligned",
+                "misaligned",
+                "unjudged"
+              ],
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "verdict"
+          ],
+          "type" : "object"
+        },
+        "verified" : {
+          "description" : "observed: checks that showed the thing working",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "ask",
+        "title",
+        "crucial",
+        "verified",
+        "phase"
+      ],
+      "type" : "object"
+    },
+    "evidence" : {
+      "properties" : {
+        "basis" : {
+          "enum" : [
+            "file",
+            "body",
+            "decl",
+            "shape"
+          ],
+          "type" : "string"
+        },
+        "check" : {
+          "properties" : {
+            "directory" : {
+              "type" : "string"
+            },
+            "kind" : {
+              "type" : "string"
+            },
+            "label" : {
+              "type" : "string"
+            },
+            "route" : {
+              "type" : "string"
+            },
+            "status" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "kind",
+            "label",
+            "status"
+          ],
+          "type" : "object"
+        },
+        "from" : {
+          "description" : "the superseded record this pointer was inherited from",
+          "type" : "string"
+        },
+        "hash" : {
+          "description" : "16 hex: the first eight bytes of SHA-256 of what `basis` names",
+          "type" : "string"
+        },
+        "kind" : {
+          "enum" : [
+            "file",
+            "symbol",
+            "stack",
+            "check"
+          ],
+          "type" : "string"
+        },
+        "observedAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "path" : {
+          "description" : "relative to the project root",
+          "type" : "string"
+        },
+        "rev" : {
+          "description" : "the file's revision in the project's ledger when observed",
+          "type" : "integer"
+        },
+        "role" : {
+          "enum" : [
+            "anchor",
+            "support",
+            "counter",
+            "context"
+          ],
+          "type" : "string"
+        },
+        "stack" : {
+          "properties" : {
+            "label" : {
+              "type" : "string"
+            },
+            "major" : {
+              "type" : "integer"
+            },
+            "name" : {
+              "type" : "string"
+            },
+            "version" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "name",
+            "label"
+          ],
+          "type" : "object"
+        },
+        "symbol" : {
+          "properties" : {
+            "id" : {
+              "type" : "string"
+            },
+            "kind" : {
+              "type" : "string"
+            },
+            "qualifiedName" : {
+              "type" : "string"
+            },
+            "selector" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "id",
+            "qualifiedName",
+            "kind"
+          ],
+          "type" : "object"
+        },
+        "weight" : {
+          "maximum" : 12,
+          "minimum" : 1,
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "kind",
+        "role",
+        "weight",
+        "observedAt"
+      ],
+      "type" : "object"
+    },
+    "exportRow" : {
+      "properties" : {
+        "computedAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "excerpts" : {
+          "items" : {
+            "properties" : {
+              "lines" : {
+                "type" : "string"
+              },
+              "path" : {
+                "type" : "string"
+              },
+              "text" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "path",
+              "lines",
+              "text"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "recall" : {
+          "$ref" : "#/$defs/tally"
+        },
+        "record" : {
+          "$ref" : "#/$defs/record"
+        },
+        "staleness" : {
+          "properties" : {
+            "editsSince" : {
+              "type" : "integer"
+            },
+            "grade" : {
+              "enum" : [
+                "fresh",
+                "shifted",
+                "drifted",
+                "contradicted"
+              ],
+              "type" : "string"
+            },
+            "notes" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            }
+          },
+          "required" : [
+            "grade",
+            "notes"
+          ],
+          "type" : "object"
+        }
+      },
+      "required" : [
+        "record",
+        "staleness",
+        "computedAt"
+      ],
+      "type" : "object"
+    },
+    "instruction" : {
+      "properties" : {
+        "text" : {
+          "description" : "the person's words; empty once they cleared them",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "text"
+      ],
+      "type" : "object"
+    },
+    "ledger" : {
+      "properties" : {
+        "files" : {
+          "additionalProperties" : {
+            "properties" : {
+              "hash" : {
+                "type" : "string"
+              },
+              "rev" : {
+                "type" : "integer"
+              }
+            },
+            "required" : [
+              "rev",
+              "hash"
+            ],
+            "type" : "object"
+          },
+          "type" : "object"
+        },
+        "format" : {
+          "const" : "craft-ledger/1"
+        },
+        "path" : {
+          "type" : "string"
+        },
+        "project" : {
+          "properties" : {
+            "id" : {
+              "type" : "string"
+            },
+            "label" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "id",
+            "label"
+          ],
+          "type" : "object"
+        },
+        "recall" : {
+          "additionalProperties" : {
+            "$ref" : "#/$defs/tally"
+          },
+          "type" : "object"
+        },
+        "useDays" : {
+          "items" : {
+            "pattern" : "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "type" : "string"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "format",
+        "project",
+        "path",
+        "useDays",
+        "files",
+        "recall"
+      ],
+      "type" : "object"
+    },
+    "lesson" : {
+      "properties" : {
+        "ask" : {
+          "description" : "the person's words, for the turn it happened in",
+          "type" : "string"
+        },
+        "doing" : {
+          "description" : "observed: the call or command that failed",
+          "type" : "string"
+        },
+        "failed" : {
+          "description" : "observed: its first error line",
+          "type" : "string"
+        },
+        "fixedBy" : {
+          "description" : "observed: the edit or command that passed after it",
+          "type" : "string"
+        },
+        "kind" : {
+          "enum" : [
+            "toolFailed",
+            "checkFailed",
+            "judicatorMiss"
+          ],
+          "type" : "string"
+        },
+        "place" : {
+          "description" : "the file it failed in, relative to the project",
+          "type" : "string"
+        },
+        "symbol" : {
+          "description" : "the scope it failed in, when one was named",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "kind",
+        "place",
+        "doing",
+        "failed"
+      ],
+      "type" : "object"
+    },
+    "profile" : {
+      "properties" : {
+        "build" : {
+          "type" : "string"
+        },
+        "dependencies" : {
+          "description" : "as the manifest writes them: `next 16.3.8`",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "dev" : {
+          "type" : "string"
+        },
+        "frameworks" : {
+          "description" : "attached frameworks by label and version",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "languages" : {
+          "items" : {
+            "properties" : {
+              "files" : {
+                "type" : "integer"
+              },
+              "language" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "language",
+              "files"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "manifests" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "packageManager" : {
+          "type" : "string"
+        },
+        "platforms" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "sourceRoots" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "test" : {
+          "type" : "string"
+        },
+        "typecheck" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "languages",
+        "manifests",
+        "platforms",
+        "dependencies",
+        "sourceRoots",
+        "frameworks"
+      ],
+      "type" : "object"
+    },
+    "record" : {
+      "properties" : {
+        "approach" : {
+          "$ref" : "#/$defs/approach"
+        },
+        "claim" : {
+          "type" : "string"
+        },
+        "claimBy" : {
+          "enum" : [
+            "craft",
+            "model",
+            "person"
+          ],
+          "type" : "string"
+        },
+        "createdAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "evidence" : {
+          "items" : {
+            "$ref" : "#/$defs/evidence"
+          },
+          "maxItems" : 16,
+          "type" : "array"
+        },
+        "format" : {
+          "const" : "craft-record/2"
+        },
+        "id" : {
+          "pattern" : "^(cv|ap|nt|ls)-[0-9a-f]{16}$",
+          "type" : "string"
+        },
+        "instruction" : {
+          "$ref" : "#/$defs/instruction"
+        },
+        "kind" : {
+          "enum" : [
+            "approach",
+            "note",
+            "lesson",
+            "instruction",
+            "project"
+          ],
+          "type" : "string"
+        },
+        "lastValidated" : {
+          "description" : "the last time a check found the record holding",
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "lesson" : {
+          "$ref" : "#/$defs/lesson"
+        },
+        "profile" : {
+          "$ref" : "#/$defs/profile"
+        },
+        "project" : {
+          "properties" : {
+            "id" : {
+              "type" : "string"
+            },
+            "label" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "id",
+            "label"
+          ],
+          "type" : "object"
+        },
+        "revision" : {
+          "minimum" : 1,
+          "type" : "integer"
+        },
+        "scope" : {
+          "properties" : {
+            "language" : {
+              "type" : "string"
+            },
+            "paths" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "stack" : {
+              "properties" : {
+                "major" : {
+                  "type" : "integer"
+                },
+                "name" : {
+                  "type" : "string"
+                }
+              },
+              "required" : [
+                "name"
+              ],
+              "type" : "object"
+            }
+          },
+          "type" : "object"
+        },
+        "source" : {
+          "properties" : {
+            "detector" : {
+              "type" : "string"
+            },
+            "kind" : {
+              "enum" : [
+                "observed",
+                "turn",
+                "stated"
+              ],
+              "type" : "string"
+            },
+            "model" : {
+              "type" : "string"
+            },
+            "plan" : {
+              "type" : "string"
+            },
+            "rounds" : {
+              "type" : "integer"
+            },
+            "session" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "kind"
+          ],
+          "type" : "object"
+        },
+        "status" : {
+          "enum" : [
+            "candidate",
+            "verified",
+            "superseded"
+          ],
+          "type" : "string"
+        },
+        "statusChangedAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "supersededBy" : {
+          "type" : "string"
+        },
+        "supersedes" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "format",
+        "id",
+        "kind",
+        "revision",
+        "project",
+        "claim",
+        "claimBy",
+        "scope",
+        "source",
+        "status",
+        "createdAt",
+        "statusChangedAt",
+        "lastValidated",
+        "evidence"
+      ],
+      "type" : "object"
+    },
+    "tally" : {
+      "properties" : {
+        "consulted" : {
+          "type" : "integer"
+        },
+        "credited" : {
+          "type" : "integer"
+        },
+        "lastAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "placed" : {
+          "type" : "integer"
+        },
+        "turns" : {
+          "items" : {
+            "properties" : {
+              "at" : {
+                "format" : "date-time",
+                "type" : "string"
+              },
+              "consulted" : {
+                "type" : "boolean"
+              },
+              "credited" : {
+                "type" : "boolean"
+              },
+              "placed" : {
+                "type" : "boolean"
+              },
+              "session" : {
+                "type" : "string"
+              },
+              "turn" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "session",
+              "turn",
+              "at"
+            ],
+            "type" : "object"
+          },
+          "maxItems" : 8,
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "placed",
+        "consulted",
+        "credited",
+        "turns"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "craft-record/2",
+  "$ref" : "#/$defs/record",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "description" : "What Craft learned about a project or was told, with the evidence that would falsify it. Staleness is never stored: an export row carries it as of the export. Spec: Schema/Storage.md.",
+  "title" : "Craft record"
+}
