@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `62379d4d` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `3229319f` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -183,7 +183,9 @@ Craft runs. Nothing a project needs is a file inside the project, and nothing is
 ## 11. Starting fresh
 
 `craft thread reset --all` empties Craft's part of AII for every project (`ThreadOps.forgetEverything`): every
-`craft-` group goes, the lane is cleared, the outbox is emptied, and the in-memory settings layer is dropped. It refuses while Craft runs, since a live keeper writes what it holds back as it quits. Other apps'
+`craft-` group goes, the lane is cleared (with the graph's entities and relationships its documents mention; one another
+lane's documents also mention stays, as that lane's), the outbox is emptied, and the in-memory settings layer is dropped.
+It reads the lane's counts back from the node and refuses to call it done while any document or entity is left. It refuses while Craft runs, since a live keeper writes what it holds back as it quits. Other apps'
 lanes are untouched. Code cards are filed again as projects open; instructions and settings must be told again.
 `craft records export --archive` first keeps a copy; nothing older is ever translated in. `craft thread forget --all`
 does the same for one project.
