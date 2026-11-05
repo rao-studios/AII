@@ -1,4 +1,4 @@
-# Schema
+# Schemas
 
 What each app files into AII, one folder per app. AII's own contract is the envelope every document wears,
 `aii-record/1`, and the lanes, owners and groups it is filed under:
@@ -20,9 +20,9 @@ Three groups, one a search scope each ([`Craft/Storage.md`](Craft/Storage.md) ha
 | --- | --- | --- | --- |
 | `craft-code-<scope>` | code cards, one document per file, one group per clone | code search | [`code-card.schema.json`](Craft/code-card.schema.json) |
 | `craft-records` | `approach`, `lesson` and `note` records | search by meaning | [`craft-record.schema.json`](Craft/craft-record.schema.json) |
-| `craft-project` | the `project` record, `instruction` records, the recall `ledger`, the `settings` | prefix, never searched | [`craft-project.schema.json`](Craft/craft-project.schema.json) |
+| `craft-index` | the `project` record, `instruction` records, the recall `ledger`, the `settings` | prefix, never searched | [`craft-index.schema.json`](Craft/craft-index.schema.json) |
 
-`craft-project` is the project's bookkeeping, and nothing in it is found by meaning, so its schema says everything an
+`craft-index` is the project's bookkeeping, and nothing in it is found by meaning, so its schema says everything an
 indexer needs to know a document by: the four kinds, each kind's envelope id and the entity it names, and each
 payload — the records by `craft-record.schema.json`, the ledger (`craft-ledger/1`) and the settings
 (`craft-settings/1`) in full.

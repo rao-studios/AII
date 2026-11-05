@@ -56,7 +56,7 @@
       "type" : "object"
     }
   },
-  "$id" : "craft-project/1",
+  "$id" : "craft-index/1",
   "$schema" : "https://json-schema.org/draft/2020-12/schema",
   "allOf" : [
     {
@@ -148,7 +148,7 @@
       }
     }
   ],
-  "description" : "Every document in craft-project: an aii-record/1 envelope (AII's record schema) of Craft's lane, read by prefix and never searched — the project record, the person's instructions (every project's under the key user), each project's recall ledger and its settings. What is fixed here is what Craft files; the rest of the envelope is AII's. Spec: Schema/Storage.md.",
+  "description" : "Every document in craft-index: an aii-record/1 envelope (AII's record schema) of Craft's lane, read by prefix and never searched — the project record, the person's instructions (every project's under the key user), each project's recall ledger and its settings. What is fixed here is what Craft files; the rest of the envelope is AII's. Spec: Schema/Storage.md.",
   "properties" : {
     "app" : {
       "const" : "craft"
@@ -159,7 +159,7 @@
     "group" : {
       "properties" : {
         "id" : {
-          "const" : "project"
+          "const" : "index"
         },
         "label" : {
           "type" : "string"
@@ -204,6 +204,6 @@
     "group",
     "payload"
   ],
-  "title" : "Craft's project group",
+  "title" : "Craft's index group",
   "type" : "object"
 }

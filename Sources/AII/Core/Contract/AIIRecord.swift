@@ -56,7 +56,7 @@ public struct AIIRecord: Sendable, Equatable {
 
     /// What a record is, in an open vocabulary: `note`, `recipe`, `approach`. The kinds named here are the general ones
     /// any lane may file; an app's own kinds are its own, spelled by the app (`Protos/README.md`, "Kinds in use", and
-    /// each app's folder under `Schema/`).
+    /// each app's folder under `Schemas/`).
     public struct Kind: RawRepresentable, Codable, Hashable, Comparable, Sendable,
                         CustomStringConvertible, ExpressibleByStringLiteral {
         public let rawValue: String

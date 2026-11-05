@@ -144,7 +144,7 @@ message's JSON.
 | `format` | `aii-record/1` |
 | `app` | the lane's name |
 | `id` | your `recordID`: 1 to 128 of `A-Z`, `a-z`, `0-9` and `. _ : @ -`, with no `/` |
-| `kind` | your type's `kind`: 1 to 32 of `a-z`, `0-9` and `-`, starting with a letter. AII names the general ones, `note`, `document`, `memory`, `event` and `image`; an app's own kinds are its own (every lane's: [Protos → Kinds in use](../../Protos/README.md#kinds-in-use), and its layout under [`Schema/`](../../Schema/README.md)). |
+| `kind` | your type's `kind`: 1 to 32 of `a-z`, `0-9` and `-`, starting with a letter. AII names the general ones, `note`, `document`, `memory`, `event` and `image`; an app's own kinds are its own (every lane's: [Protos → Kinds in use](../../Protos/README.md#kinds-in-use), and its layout under [`Schemas/`](../../Schemas/README.md)). |
 | `title` | your `title` |
 | `group` | `{id, label}`: `Self.group`, unless the value says otherwise |
 | `source` | `{kind, ref?}`: `app` by default |

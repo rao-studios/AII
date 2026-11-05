@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `2210a140` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `62379d4d` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -9,14 +9,14 @@ rebuilt from the project's files or belongs to this Mac on purpose (§9).
 | File | What it describes |
 | --- | --- |
 | [`craft-record.schema.json`](craft-record.schema.json) | A record (`craft-record/2`), its payloads, the ledger and an export row (§4, §6) |
-| [`craft-project.schema.json`](craft-project.schema.json) | Every document in `craft-project` as AII holds it: its kinds, their ids and entities, each payload (§2, §6, §7) |
+| [`craft-index.schema.json`](craft-index.schema.json) | Every document in `craft-index` as AII holds it: its kinds, their ids and entities, each payload (§2, §6, §7) |
 | [`code-card.schema.json`](code-card.schema.json) | A code card (`craft-card/1`), what `craft-code-<scope>` holds (§8) |
 | Craft's `Docs/craft-turn.schema.json` | A turn record (`craft-turn/1`), this Mac's log of one turn (§9) |
 
-All four are generated from the code (`RecordSchemaJSON`, `ProjectGroupSchemaJSON`, `CardSchemaJSON`,
+All four are generated from the code (`RecordSchemaJSON`, `IndexGroupSchemaJSON`, `CardSchemaJSON`,
 `TurnRecordSchemaJSON`); `CRAFT_UPDATE_GOLDEN=1` rewrites them, and a test fails when they drift — another builds each
-`craft-project` document as the stores do and holds it to its schema. AII's repository keeps a copy of this document and
-the schemas of what is in AII, under `Schema/Craft/`: `scripts/schema/publish-aii.py` writes it, and it is never edited
+`craft-index` document as the stores do and holds it to its schema. AII's repository keeps a copy of this document and
+the schemas of what is in AII, under `Schemas/Craft/`: `scripts/schema/publish-aii.py` writes it, and it is never edited
 there.
 
 ## 1. Layers
@@ -26,8 +26,8 @@ Four layers, each named for what it is. Only the second is knowledge Craft learn
 | Layer | Contents | Stored | Written by | Read by |
 | --- | --- | --- | --- | --- |
 | **Code index** (derived) | code cards — and so how the project writes code | AII (`craft-code-<scope>`) and this Mac's index | the watch engine (`ProjectWatch` → `LazyThreadIndex`) | retrieval, the knowledge window |
-| **Craft records** (learned or told) | `project`, `approach`, `lesson`, `note`, `instruction` — each with evidence and staleness | AII (`craft-records`, `craft-project`) | the record keeper (`RecordKeeper`), `InstructionsStore` | retrieval, the prompt, the knowledge window |
-| **Bookkeeping** (not knowledge) | the recall ledger; project settings | AII (`craft-project`) | the keeper; `SettingsStore` | the keeper, `ConfigStore` |
+| **Craft records** (learned or told) | `project`, `approach`, `lesson`, `note`, `instruction` — each with evidence and staleness | AII (`craft-records`, `craft-index`) | the record keeper (`RecordKeeper`), `InstructionsStore` | retrieval, the prompt, the knowledge window |
+| **Bookkeeping** (not knowledge) | the recall ledger; project settings | AII (`craft-index`) | the keeper; `SettingsStore` | the keeper, `ConfigStore` |
 | **Local only** | turn logs, framework reference, global app config, the outbox | `~/.rao/apps/craft/…`, `~/Library/Application Support/Craft/config.json` | the turn, the frameworks installer, Settings | Lantern, the reference band, every process |
 
 ## 2. Groups
@@ -39,11 +39,11 @@ apps share with no account, `aii-local`. Every group begins `craft-`, every docu
 | Group | Holds | Searched |
 | --- | --- | --- |
 | `craft-records` | approach, lesson and note records | yes — the record query (`ThreadBoot.searchRecords`) |
-| `craft-project` | the project record, instruction records (every project's under the key `user`), the recall ledger, the settings | no — read by prefix |
+| `craft-index` | the project record, instruction records (every project's under the key `user`), the recall ledger, the settings | no — read by prefix |
 | `craft-code-<scope>` | code cards, one document per file; one group per clone | yes — code queries, this project's |
 
-`craft-project` is bookkeeping as much as knowledge, and none of it is found by meaning, so an indexer knows each
-document by its kind, its id and its payload ([`craft-project.schema.json`](craft-project.schema.json)):
+`craft-index` is bookkeeping as much as knowledge, and none of it is found by meaning, so an indexer knows each
+document by its kind, its id and its payload ([`craft-index.schema.json`](craft-index.schema.json)):
 
 | Document | `kind` | Envelope id | Payload | Entity |
 | --- | --- | --- | --- | --- |
