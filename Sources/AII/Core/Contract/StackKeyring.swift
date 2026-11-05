@@ -8,7 +8,8 @@
 //  WHAT: Every stack secret, as the shared Sewn and the one Thread hold them:
 //        which identity a presented secret belongs to, and which secret to prove
 //        for an identity.
-//  IN:   AII_HOME/secrets/<identity>: every file there named like an app, and `aii`.
+//  IN:   AII_HOME/secrets/<identity>: every file there named like an app, and `aii`;
+//        and Link's, derived from keys/device.key rather than kept in a file (AIILink).
 //        Read at start and again when a well-formed secret misses (an app registered
 //        after the server started) or the ring is a minute old (a secret revoked by
 //        deleting its file).
@@ -132,6 +133,10 @@ public final class StackKeyring: @unchecked Sendable {
             } catch {
                 found.append(Issue(identity: identity, reason: "\(error)"))
             }
+        }
+        // Link has no file: its credential is derived from the device key (AIILink).
+        if let key = try? AIIDeviceKey.load(home: home) {
+            loaded[.app(AIILink.app)] = AIILink.secret(deviceKey: key)
         }
         let byValue = Dictionary(grouping: loaded.keys, by: { loaded[$0]! })
         for identities in byValue.values where identities.count > 1 {

@@ -120,7 +120,7 @@ struct PartitionTable: Codable {
 
         // One index, three apps: a caller sees its own lane and nothing else, whatever
         // owner or group it named. Unscoped (no lanes) cuts nothing.
-        let laneDocuments = registry.documents(inLane: request.lane)
+        let laneDocuments = registry.documents(visibleFrom: request.lane)
         if let laneDocuments {
             candidateIds.formIntersection(laneDocuments)
             scopedIds?.formIntersection(laneDocuments)

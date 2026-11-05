@@ -106,11 +106,13 @@ extension Database {
 
 extension Database {
     /// The owner's groups in `lane` (every lane when unscoped), with their documents.
-    nonisolated func groups(for ownerId: OwnerID, lane: LaneID = .unscoped) -> [Database.Group] {
+    /// `shared` adds the shared lanes' (Link) for a listing; a change of group never asks.
+    nonisolated func groups(for ownerId: OwnerID, lane: LaneID = .unscoped, shared: Bool = false) -> [Database.Group] {
         guard let registry else { return [] }
         let owner = ThreadRegistry.Owner(id: ownerId)
         return (registry.ownersGroups[owner] ?? []).compactMap { entry in
-            guard entry.ownerId == owner.id, registry.isGroupReadable(entry.id, from: lane) else { return nil }
+            let readable = shared ? registry.isGroupVisible(entry.id, from: lane) : registry.isGroupReadable(entry.id, from: lane)
+            guard entry.ownerId == owner.id, readable else { return nil }
             return buildGroup(entry: entry, registry: registry)
         }
     }
@@ -118,7 +120,7 @@ extension Database {
     nonisolated func availableGroups(lane: LaneID = .unscoped) -> [Database.Group] {
         guard let registry else { return [] }
         return registry.availableGroupIds
-            .filter { registry.isGroupReadable($0, from: lane) }
+            .filter { registry.isGroupVisible($0, from: lane) }
             .compactMap { buildGroup(groupId: $0, registry: registry) }
     }
 
@@ -129,14 +131,14 @@ extension Database {
         guard let registry else { return [] }
         let owner = ThreadRegistry.Owner(id: ownerId)
         return (registry.ownersGroups[owner] ?? []).filter {
-            $0.ownerId == owner.id && registry.isGroupReadable($0.id, from: lane)
+            $0.ownerId == owner.id && registry.isGroupVisible($0.id, from: lane)
         }
     }
 
     /// Returns lightweight group entries for all available (public) groups in `lane`.
     nonisolated func availableGroupEntries(lane: LaneID = .unscoped) -> [Database.Group] {
         guard let registry else { return [] }
-        return registry.availableGroupIds.filter { registry.isGroupReadable($0, from: lane) }.compactMap { id in
+        return registry.availableGroupIds.filter { registry.isGroupVisible($0, from: lane) }.compactMap { id in
             guard let owner = registry.groupOwners[id],
                   let list = registry.ownersGroups[owner] else { return nil }
             var lo = 0, hi = list.count

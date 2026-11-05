@@ -60,10 +60,10 @@ final class ThreadLibraryServiceImpl: Thread_V1_ThreadLibrary.ServiceProtocol, S
             guard let registry = database.registry else {
                 return Thread_V1_ThreadLibraryResponse()
             }
-            let requestedIds = Set(request.documentIds).filter { registry.isReadable($0, from: lane) }
+            let requestedIds = Set(request.documentIds).filter { registry.isVisible($0, from: lane) }
             var groupIdSet = Set<String>()
             for docId in requestedIds {
-                for groupId in registry.documentGroups[docId] ?? [] where registry.isGroupReadable(groupId, from: lane) {
+                for groupId in registry.documentGroups[docId] ?? [] where registry.isGroupVisible(groupId, from: lane) {
                     groupIdSet.insert(groupId)
                 }
             }
@@ -194,7 +194,7 @@ final class ThreadLibraryServiceImpl: Thread_V1_ThreadLibrary.ServiceProtocol, S
         documentId: String, ownerID: String, registry: ThreadRegistry, lane: LaneID,
         includeEmbeddings: Bool = false
     ) -> Thread_V1_ThreadDocumentContent? {
-        guard registry.isReadable(documentId, from: lane),
+        guard registry.isVisible(documentId, from: lane),
               registry.isOwnerLinked(documentId, ownerId: ownerID)
                 || registry.availableDocumentIds.contains(documentId) else {
             return nil

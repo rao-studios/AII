@@ -37,7 +37,7 @@ extension Database {
             && (query.queryVector?.isEmpty ?? true)
         // Access filter: owner docs + publicly available docs, cut to the caller's lane.
         let ownerKey = ThreadRegistry.Owner(id: request.ownerId)
-        let laneDocuments = self.registry?.documents(inLane: request.lane)
+        let laneDocuments = self.registry?.documents(visibleFrom: request.lane)
         let accessible: Set<DocumentID> = {
             guard let registry = self.registry else { return [] }
             var set = registry.availableDocumentIds.union(Set(registry.ownersDocuments[ownerKey] ?? []))

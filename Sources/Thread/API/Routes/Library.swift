@@ -34,7 +34,7 @@ func registerLibraryRoute(_ app: some RouterMethods<ThreadRequestContext>, _ dat
     app.post("/v1/library") { request, context async throws -> LibraryResponse in
         let body = try await request.decode(as: LibraryRequest.self, context: context)
         let lane = try resolver.scope(identity: context.callerIdentity).filter ?? .unscoped
-        var groups = database.groups(for: body.ownerId, lane: lane)
+        var groups = database.groups(for: body.ownerId, lane: lane, shared: true)
         if body.includeAvailable == true {
             let available = database.availableGroups(lane: lane)
             var seen = Set(groups.map(\.id))
@@ -48,10 +48,10 @@ func registerLibraryRoute(_ app: some RouterMethods<ThreadRequestContext>, _ dat
     app.post("/v1/library/document") { request, context async throws -> LibraryResponse in
         let body = try await request.decode(as: LibraryDocumentRequest.self, context: context)
         let lane = try resolver.scope(identity: context.callerIdentity).filter ?? .unscoped
-        guard let registry = database.registry, registry.isReadable(body.documentId, from: lane) else {
+        guard let registry = database.registry, registry.isVisible(body.documentId, from: lane) else {
             return LibraryResponse(groups: [])
         }
-        let groupIds = (registry.documentGroups[body.documentId] ?? []).filter { registry.isGroupReadable($0, from: lane) }
+        let groupIds = (registry.documentGroups[body.documentId] ?? []).filter { registry.isGroupVisible($0, from: lane) }
         let groups = groupIds.compactMap { database.buildGroup(groupId: $0, registry: registry) }
         return LibraryResponse(groups: groups)
     }

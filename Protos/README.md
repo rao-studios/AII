@@ -619,6 +619,7 @@ filters by owner, group and media type only, so the kind filter runs in AII, ove
 | --- | --- | --- | --- |
 | Ambient | `reading`, `manifest`, `turn`, `insight`, `note` | `ambient/reading/<16 hex>`, `ambient/manifest/<16 hex>`, `ambient/turn/<uuid>`, `ambient/insight/<uuid>`, `ambient/note/<16 hex>` | `ambient-reading-<owner>`, `ambient-interaction-<owner>`, `ambient-seer-<owner>` |
 | Craft | `project`, `approach`, `lesson`, `note`, `instruction`, `ledger`, `settings`, `code` | `craft/<kind>/<project>.<record>.<version>` for a record, `<project>.<version>` for a ledger or settings, `<scope>.<path>.<hash>` for code: each version is its own id ([`Schemas/Craft`](../Schemas/Craft/Storage.md)) | `craft-records`, `craft-index`, `craft-code-<scope>` |
+| Link (shared, every lane reads it) | `note` | `link/note/<16 hex>` | `link-<owner>` ([`Schemas/Link`](../Schemas/Link/Link.md)) |
 | Veil | `image` | `veil/image/img-<32 hex>` | `veil-<12 hex>`, one per picture set |
 | Sewn | `memory` | `<app>/memory/<id>` | `<app>-memory-<owner>`, `<app>-resonance-<owner>` |
 | Notes | `note` | `notes/note/<id>` | `notes-notes` |

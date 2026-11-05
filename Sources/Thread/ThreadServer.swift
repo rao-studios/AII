@@ -67,7 +67,9 @@ extension ThreadServer {
         }
         do {
             _ = try home.ensureSecret(for: .stack)
-            let lanes = try AIILanes.ensure(home: home)
+            // Every app's lane, and the shared ones (Link), whose ids every caller reads.
+            let lanes = try AIILanes.ensure(home: home, apps: home.registeredApps() + AIILanes.shared)
+            ThreadSharedLanes.set(Set(AIILanes.shared.compactMap { lanes.id(for: $0) }))
             logger.info("Lanes: \(lanes.apps.map { "\($0.rawValue)=\(lanes.id(for: $0)?.rawValue ?? "?")" }.joined(separator: " "))")
             return LaneResolver(stack: stack, lanes: AIILaneRegistry(home: home))
         } catch {

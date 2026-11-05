@@ -37,8 +37,9 @@ final class StackModeTests: XCTestCase {
         let mode = try StackMode.sewn(environment: ["AII_HOME": PrivateFile.path(test.home.root)])
         XCTAssertTrue(mode.isLocal)
         XCTAssertNotNil(mode.keyring)
-        XCTAssertEqual(mode.keyring?.provisionedApps, AIIApp.allCases)
-        XCTAssertEqual(mode.keyring?.provisionedIdentities, [.stack, .app(.ambient), .app(.craft), .app(.veil)])
+        // Link's identity is derived from the device key provisioning made, not from a file.
+        XCTAssertEqual(mode.keyring?.provisionedApps, (AIIApp.allCases + [.link]).sorted())
+        XCTAssertEqual(mode.keyring?.provisionedIdentities, [.stack, .app(.ambient), .app(.craft), .app(.link), .app(.veil)])
     }
 
     func testSewnRefusesAHomeThatIsMissingOrOpen() throws {

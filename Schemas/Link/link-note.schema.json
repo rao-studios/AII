@@ -1,0 +1,157 @@
+{
+  "$defs" : {
+    "device" : {
+      "properties" : {
+        "id" : {
+          "type" : "string"
+        },
+        "kind" : {
+          "description" : "what the device is: phone today",
+          "type" : "string"
+        },
+        "name" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "kind",
+        "name",
+        "id"
+      ],
+      "type" : "object"
+    },
+    "note" : {
+      "properties" : {
+        "characters" : {
+          "minimum" : 0,
+          "type" : "integer"
+        },
+        "contentHash" : {
+          "description" : "what the device says the note's words hash to",
+          "type" : "string"
+        },
+        "createdAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "device" : {
+          "$ref" : "#/$defs/device"
+        },
+        "filedBy" : {
+          "description" : "the Mac app that received and filed it",
+          "type" : "string"
+        },
+        "folder" : {
+          "description" : "the device's folder for it; a field, never a group",
+          "type" : "string"
+        },
+        "format" : {
+          "const" : "link-note/1"
+        },
+        "noteID" : {
+          "description" : "the note's own id on the device, lowercased",
+          "type" : "string"
+        },
+        "tags" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "updatedAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "format",
+        "noteID",
+        "tags",
+        "device",
+        "createdAt",
+        "updatedAt",
+        "contentHash",
+        "characters",
+        "filedBy"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "link-note/1",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "description" : "An aii-record/1 envelope in Link's lane: one per note and owner, in link-<owner>, replaced when the note changes. Its partitions are the card (Note:, Written on:, Written:, Folder:, Tags:) then the body in packed paragraphs.",
+  "properties" : {
+    "app" : {
+      "const" : "link"
+    },
+    "format" : {
+      "const" : "aii-record/1"
+    },
+    "group" : {
+      "properties" : {
+        "id" : {
+          "description" : "the owner, lowercased; the wire group is link-<this>",
+          "type" : "string"
+        },
+        "label" : {
+          "const" : "Link"
+        }
+      },
+      "required" : [
+        "id",
+        "label"
+      ],
+      "type" : "object"
+    },
+    "id" : {
+      "description" : "16 hex of FNV-1a over the owner and the note's id; the document's is link/note/<this>",
+      "pattern" : "^[0-9a-f]{16}$",
+      "type" : "string"
+    },
+    "kind" : {
+      "const" : "note"
+    },
+    "payload" : {
+      "$ref" : "#/$defs/note"
+    },
+    "source" : {
+      "properties" : {
+        "kind" : {
+          "const" : "link"
+        },
+        "ref" : {
+          "description" : "the note's own id on the device",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "kind",
+        "ref"
+      ],
+      "type" : "object"
+    },
+    "tags" : {
+      "description" : "the note's tags, each a concept a query can name",
+      "items" : {
+        "type" : "string"
+      },
+      "type" : "array"
+    },
+    "title" : {
+      "description" : "the note's title, or the first 80 characters of its body",
+      "type" : "string"
+    }
+  },
+  "required" : [
+    "format",
+    "app",
+    "id",
+    "kind",
+    "title",
+    "group",
+    "source",
+    "payload"
+  ],
+  "title" : "A note written on a linked device",
+  "type" : "object"
+}

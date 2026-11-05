@@ -60,6 +60,10 @@ public struct AIIApp: RawRepresentable, Codable, Hashable, Comparable, Sendable,
     public static let ambient: AIIApp = "ambient"
     public static let craft: AIIApp = "craft"
     public static let veil: AIIApp = "veil"
+    /// Link: what peripheral devices (a phone today) file through a Mac app they are
+    /// linked to as accessories. AII's own lane, not an app's: every app that accepts
+    /// links files into it, and every lane reads it (`AIILanes.shared`, `AIILink`).
+    public static let link: AIIApp = "link"
 
     /// The apps every home is provisioned with, so their lanes exist before they launch.
     /// Every app a home knows is `AIIHome.registeredApps()`.

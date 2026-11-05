@@ -27,7 +27,8 @@ final class StackKeyringTests: XCTestCase {
         XCTAssertNil(ring.app(forPresented: nil))
         XCTAssertNil(ring.app(forPresented: ""))
         XCTAssertNil(ring.identity(forPresented: StackSecret.generate()))
-        XCTAssertEqual(ring.provisionedIdentities, [.stack, .app(.ambient), .app(.craft), .app(.veil)], "by name, the stack first")
+        XCTAssertEqual(ring.provisionedIdentities, [.stack, .app(.ambient), .app(.craft), .app(.link), .app(.veil)],
+                       "by name, the stack first; Link's derived from the device key provisioning made")
     }
 
     func testASecretPublishedLaterIsPickedUpOnAMiss() throws {
@@ -77,7 +78,7 @@ final class StackKeyringTests: XCTestCase {
         chmod(PrivateFile.path(test.home.secretFile(for: .veil)), 0o644)
         try PrivateFile.writeAtomically(Data(secrets[.app(.ambient)]!.utf8), to: test.home.secretFile(for: .craft))
         let ring = StackKeyring(home: test.home)
-        XCTAssertEqual(ring.provisionedIdentities, [.stack], "veil skipped; ambient and craft dropped together")
+        XCTAssertEqual(ring.provisionedIdentities, [.stack, .app(.link)], "veil skipped; ambient and craft dropped together")
         XCTAssertEqual(ring.lastIssues.count, 2)
         XCTAssertNil(ring.app(forPresented: secrets[.app(.ambient)]))
     }

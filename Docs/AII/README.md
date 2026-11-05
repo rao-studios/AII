@@ -474,6 +474,14 @@ first that fails is where to look:
 | owner | the documents are under the owner Sewn answers as; the memory groups |
 | logs | recent refusals and errors in `sewn.log` and `thread.log` that name the app or its lane |
 
+**Link, the shared lane.** `link` is AII's own lane for what peripheral devices (a phone today) send through
+the Mac app they are linked to. Every lane reads it beside its own (`AIILanes.shared`): an app's search,
+documents and library include Link's. Only Link's credential writes or removes it, so an app's remove, wipe
+or lane clear never reaches a linked device's notes. Its credential is not a file: it is
+`HMAC-SHA256(device key, "rao-link-v1")`, which both servers derive, and `home.readSecret(for: .link)` and
+`AIILink.secret(home:)` give it to an app. Its schema is AII's, under
+[`Schemas/Link`](../../Schemas/Link/Link.md).
+
 `aii lanes remove <name> --yes` removes the secret and the manifest entry. The documents stay in
 Thread, and registering the name again finds them, because the lane id is derived from the name.
 

@@ -81,7 +81,8 @@ enum LaneDoctor {
             guard try home.readSecret(for: app) != nil else {
                 return checks + [.fail("secret", "secrets/\(name) is missing", fix: "aii lanes add \(name) writes it")]
             }
-            checks.append(.pass("secret", "secrets/\(name) · 0600, 64 hex"))
+            checks.append(.pass("secret", app == AIILink.app ? "derived from keys/device.key · 64 hex"
+                                                             : "secrets/\(name) · 0600, 64 hex"))
         } catch {
             return checks + [.fail("secret", AIIFailure.sentence("\(error)"), fix: "aii lanes add \(name) writes a missing one")]
         }

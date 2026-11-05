@@ -92,6 +92,8 @@ extension AIIHome {
         try PrivateFile.ensureDirectory(root)
         try PrivateFile.ensureDirectory(secretsDirectory)
         if let existing = try readSecret(for: identity) { return existing }
+        // Link's is derived, never written: it exists once the device key does.
+        if identity == .app(AIILink.app) { return AIILink.secret(deviceKey: try AIIDeviceKey.loadOrCreate(home: self).key) }
         let secret = StackSecret.generate()
         _ = try PrivateFile.publishIfAbsent(Data(secret.utf8), to: secretFile(for: identity), mode: 0o600)
         // Whoever won the race, the file now holds the one secret.
@@ -105,6 +107,8 @@ extension AIIHome {
     /// `identity`'s secret, or nil when none has been published. Throws when the
     /// file is readable by others, owned by someone else, or not 64 hex.
     public func readSecret(for identity: StackIdentity) throws -> String? {
+        // Link keeps no file: its credential is derived from the device key (AIILink).
+        if identity == .app(AIILink.app) { return try AIILink.secret(home: self) }
         let file = secretFile(for: identity)
         guard PrivateFile.exists(file) else { return nil }
         try PrivateFile.verifyPrivate(file)

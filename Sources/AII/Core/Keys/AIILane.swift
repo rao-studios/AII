@@ -101,10 +101,15 @@ public struct AIILanes: Sendable, Equatable {
     public var ids: [LaneID] { apps.compactMap { lanes[$0]?.id } }
 
     /// The owner a new lane starts with: `aii-local` for the Rao apps (Ambient, Craft,
-    /// Veil), which file there without an account; an app's own otherwise.
+    /// Veil) and Link, which file there without an account; an app's own otherwise.
     public static func defaultOwner(for app: AIIApp) -> AIIOwner {
-        AIIApp.allCases.contains(app) ? .local : .app(app)
+        AIIApp.allCases.contains(app) || shared.contains(app) ? .local : .app(app)
     }
+
+    /// Lanes every lane may read beside its own; only their own credential writes them.
+    /// Link (`AIILink`) is the one: a linked device's notes belong to the person, whichever
+    /// app they were linked through. Owners still scope every read.
+    public static let shared: [AIIApp] = [.link]
 
     public static func derive(app: AIIApp, from key: AIIDeviceKey) -> LaneID {
         let mac = key.mac(label: derivationDomain, message: Data(app.rawValue.utf8))

@@ -249,6 +249,32 @@ extension ThreadRegistry {
         return allowed.contains(groupId)
     }
 
+    // MARK: Shared lanes — reads only
+
+    /// The documents a caller in `lane` may READ: its own lane's and every shared lane's
+    /// (`AIILanes.shared`, Link). Nil when nothing is cut (unscoped). Writes, removals and
+    /// access changes never use this: they stay with `documents(inLane:)`/`isReadable`, so
+    /// no app's clear takes a shared lane's documents.
+    func documents(visibleFrom lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Set<DocumentID>? {
+        guard var own = documents(inLane: lane) else { return nil }
+        for other in shared where other != lane { own.formUnion(laneDocuments[other] ?? []) }
+        return own
+    }
+
+    /// Whether `documentId` may be READ from `lane`: its own, or a shared lane's.
+    func isVisible(_ documentId: DocumentID, from lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Bool {
+        if isReadable(documentId, from: lane) { return true }
+        guard let owner = documentLanes[documentId] else { return false }
+        return shared.contains(owner)
+    }
+
+    /// Whether `groupId` may be READ from `lane`: its own, or a shared lane's.
+    func isGroupVisible(_ groupId: GroupID, from lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Bool {
+        if isGroupReadable(groupId, from: lane) { return true }
+        guard let owner = groupLanes[groupId] else { return false }
+        return shared.contains(owner)
+    }
+
     /// The lanes, other than `lane`, that `documentIds` belong to. Empty means every
     /// document is the caller's (or unfiled). Graph admin's provenance rule.
     func foreignLanes(of documentIds: some Sequence<DocumentID>, outside lane: LaneID) -> Set<LaneID> {
@@ -540,4 +566,16 @@ extension ThreadRegistry {
             updateDocumentAccess(for: documentId, state: .restricted)
         }
     }
+}
+
+/// The lanes every caller reads beside its own (`AIILanes.shared`: Link), by id, set once
+/// at start (`ThreadServer.prepareStack`) from the lanes manifest. Empty off the shared
+/// stack, where there are no lanes to share.
+enum ThreadSharedLanes {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var current: Set<LaneID> = []
+
+    static var ids: Set<LaneID> { lock.withLock { current } }
+
+    static func set(_ ids: Set<LaneID>) { lock.withLock { current = ids } }
 }
