@@ -7,12 +7,26 @@ An app's folder says what it puts inside that envelope: its groups, its kinds, i
 
 | Folder | App | Lane | Written by |
 | --- | --- | --- | --- |
+| [`Ambient/`](Ambient/Storage.md) | Ambient | `ambient` | Ambient's `scripts/schema/publish-aii.py`, from Ambient's `Schema/` |
 | [`Craft/`](Craft/Storage.md) | Craft | `craft` | Craft's `scripts/schema/publish-aii.py`, from Craft's `Schema/` and `Docs/` |
 | [`Link/`](Link/Link.md) | Link, every app's linked devices | `link`, shared | AII itself: `Sources/AII/Link/`, held by `Tests/AIITests/AIILinkTests.swift` |
 
 An app's folder is a copy, published from the app's own repository, where its code generates the schemas and its
 tests hold them to it. Edit it there and publish again; a change made here is replaced on the next publish. `Link/`
 is the exception: it is AII's, generated and tested here (`AII_UPDATE_GOLDEN=1` rewrites its schema).
+
+## Ambient
+
+Three groups, one a search scope each, per owner ([`Ambient/Storage.md`](Ambient/Storage.md) has the whole layout):
+
+| Group | Holds | Read by | Schema |
+| --- | --- | --- | --- |
+| `ambient-reading-<owner>` | `reading` records: a page's card, its passages, its pictures | search by meaning | [`ambient-reading.schema.json`](Ambient/ambient-reading.schema.json) |
+| `ambient-exchange-<owner>` | `turn` and `insight` records: what was said, each naming the reading it was about | search by meaning | [`ambient-exchange.schema.json`](Ambient/ambient-exchange.schema.json) |
+| `ambient-index-<owner>` | the reading `ledger`: what was filed, at which hash | by id, never searched | [`ambient-ledger.schema.json`](Ambient/ambient-ledger.schema.json) |
+
+Sewn files its memory of Ambient's conversations beside them (`ambient-memory-<owner>`, `ambient-resonance-<owner>`,
+kind `memory`). An iPhone's notes are Link's, not Ambient's: Ambient files them into `link-<owner>`.
 
 ## Craft
 

@@ -1,0 +1,194 @@
+{
+  "$defs" : {
+    "layout" : {
+      "description" : "which partition is which, as inclusive [first, last] ranges",
+      "properties" : {
+        "card" : {
+          "const" : 0
+        },
+        "images" : {
+          "description" : "the pictures' descriptions",
+          "items" : {
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "maxItems" : 2,
+          "minItems" : 2,
+          "type" : "array"
+        },
+        "passages" : {
+          "description" : "the page's own words",
+          "items" : {
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "maxItems" : 2,
+          "minItems" : 2,
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "card"
+      ],
+      "type" : "object"
+    },
+    "pictures" : {
+      "properties" : {
+        "described" : {
+          "minimum" : 0,
+          "type" : "integer"
+        },
+        "located" : {
+          "description" : "pictures on the page with bytes to look at",
+          "minimum" : 0,
+          "type" : "integer"
+        },
+        "names" : {
+          "description" : "the described ones, as the graph holds them (at most 4)",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "located",
+        "described",
+        "names"
+      ],
+      "type" : "object"
+    },
+    "reading" : {
+      "properties" : {
+        "app" : {
+          "description" : "the app it was read in, by the name people know it by",
+          "type" : "string"
+        },
+        "bundleID" : {
+          "type" : "string"
+        },
+        "capturedAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "characters" : {
+          "minimum" : 0,
+          "type" : "integer"
+        },
+        "concepts" : {
+          "description" : "the annotator's concepts, or a person's correction",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "contentHash" : {
+          "description" : "16 hex of SHA-256 over the words and the pictures' addresses",
+          "type" : "string"
+        },
+        "format" : {
+          "const" : "ambient-reading/1"
+        },
+        "identity" : {
+          "description" : "the document as the app named it: its path, its URL or its title",
+          "type" : "string"
+        },
+        "identityKey" : {
+          "description" : "the material's owner-free identity: the bundle id and the document, canonical (`<bundle id>|<path, url or title>`)",
+          "type" : "string"
+        },
+        "layout" : {
+          "$ref" : "#/$defs/layout"
+        },
+        "pictures" : {
+          "$ref" : "#/$defs/pictures"
+        },
+        "precis" : {
+          "description" : "the annotator's sentence for this revision",
+          "type" : "string"
+        },
+        "url" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "format",
+        "identityKey",
+        "app",
+        "bundleID",
+        "identity",
+        "concepts",
+        "contentHash",
+        "capturedAt",
+        "characters",
+        "layout",
+        "pictures"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "ambient-reading/1",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "description" : "Replaced when the page is read again. Its partitions are the card (lines `Page: <title>` or `Document: <title>`, `Read in: <app>`, then `At: <url>`, `Summary: <précis>`, `Concepts: <a, b>`, `Pictures: <n> on the page, <m> described` when known), then the page's own words in paragraphs, and the pictures' descriptions (`[Image n] caption — description`); `layout` says which is which. Its Rao Verified record covers the passages only. Searched by meaning.",
+  "properties" : {
+    "app" : {
+      "const" : "ambient"
+    },
+    "format" : {
+      "const" : "aii-record/1"
+    },
+    "group" : {
+      "properties" : {
+        "id" : {
+          "description" : "`reading-<owner>`, the owner lowercased; the wire group is ambient-<this>",
+          "pattern" : "^reading-.+$",
+          "type" : "string"
+        },
+        "label" : {
+          "const" : "Reading"
+        }
+      },
+      "required" : [
+        "id",
+        "label"
+      ],
+      "type" : "object"
+    },
+    "id" : {
+      "description" : "FNV-1a of the owner, lowercased, `|` and the identity key; the document's is ambient/reading/<this>",
+      "pattern" : "^[0-9a-f]{16}$",
+      "type" : "string"
+    },
+    "kind" : {
+      "const" : "reading"
+    },
+    "payload" : {
+      "$ref" : "#/$defs/reading"
+    },
+    "tags" : {
+      "description" : "the concepts",
+      "items" : {
+        "type" : "string"
+      },
+      "type" : "array"
+    },
+    "title" : {
+      "type" : "string"
+    },
+    "verified" : {
+      "description" : "the Rao Verified record, `{record, seal}` (Ambient's AmbientThread/README.md)",
+      "type" : "object"
+    }
+  },
+  "required" : [
+    "format",
+    "app",
+    "id",
+    "kind",
+    "title",
+    "group",
+    "payload"
+  ],
+  "title" : "A reading: one page or document and owner, in ambient-reading-<owner>",
+  "type" : "object"
+}

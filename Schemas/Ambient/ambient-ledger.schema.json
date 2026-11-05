@@ -1,0 +1,147 @@
+{
+  "$defs" : {
+    "entry" : {
+      "properties" : {
+        "annotation" : {
+          "description" : "why its concepts look the way they do",
+          "enum" : [
+            "pending",
+            "ran",
+            "noAnnotator",
+            "refusedExclusiveEngine",
+            "failed",
+            "sewnUnavailable",
+            "empty",
+            "unparsable",
+            "pinned",
+            "unknown"
+          ]
+        },
+        "concepts" : {
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "contentHash" : {
+          "description" : "the revision filed; empty when a re-read cleared it",
+          "type" : "string"
+        },
+        "filedAt" : {
+          "description" : "when this revision reached AII",
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "indexedAt" : {
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "lastSeenAt" : {
+          "description" : "last in front of the person: what retention counts",
+          "format" : "date-time",
+          "type" : "string"
+        },
+        "pinnedConcepts" : {
+          "description" : "a person's correction: replaces the annotator's, an empty one too",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "precis" : {
+          "type" : "string"
+        },
+        "visuals" : {
+          "additionalProperties" : {
+            "type" : "string"
+          },
+          "description" : "what each picture shows, by the picture's own hash",
+          "type" : "object"
+        }
+      },
+      "required" : [
+        "contentHash",
+        "concepts",
+        "indexedAt",
+        "annotation"
+      ],
+      "type" : "object"
+    },
+    "ledger" : {
+      "properties" : {
+        "entries" : {
+          "additionalProperties" : {
+            "$ref" : "#/$defs/entry"
+          },
+          "description" : "by the reading's identity key",
+          "type" : "object"
+        },
+        "format" : {
+          "const" : "ambient-ledger/1"
+        }
+      },
+      "required" : [
+        "format",
+        "entries"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "ambient-ledger/1",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "description" : "Every reading filed and the content hash it was filed at, so a relaunch resumes instead of reading again. The whole ledger is the payload; its one partition is a summary line (`Reading ledger: <n> readings`). Only rows whose revision reached AII, or that a person pinned, are written. Read by id.",
+  "properties" : {
+    "app" : {
+      "const" : "ambient"
+    },
+    "format" : {
+      "const" : "aii-record/1"
+    },
+    "group" : {
+      "properties" : {
+        "id" : {
+          "description" : "`index-<owner>`, the owner lowercased; the wire group is ambient-<this>",
+          "pattern" : "^index-.+$",
+          "type" : "string"
+        },
+        "label" : {
+          "const" : "Index"
+        }
+      },
+      "required" : [
+        "id",
+        "label"
+      ],
+      "type" : "object"
+    },
+    "id" : {
+      "description" : "FNV-1a of the owner, lowercased; the document's is ambient/ledger/<this>",
+      "pattern" : "^[0-9a-f]{16}$",
+      "type" : "string"
+    },
+    "kind" : {
+      "const" : "ledger"
+    },
+    "payload" : {
+      "$ref" : "#/$defs/ledger"
+    },
+    "title" : {
+      "type" : "string"
+    },
+    "verified" : {
+      "description" : "the Rao Verified record, `{record, seal}` (Ambient's AmbientThread/README.md)",
+      "type" : "object"
+    }
+  },
+  "required" : [
+    "format",
+    "app",
+    "id",
+    "kind",
+    "title",
+    "group",
+    "payload"
+  ],
+  "title" : "The reading ledger: one per owner, in ambient-index-<owner>, never searched",
+  "type" : "object"
+}
