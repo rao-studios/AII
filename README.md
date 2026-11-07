@@ -157,6 +157,14 @@ and a coding model. AII ships all of it as one dependency. Ambient (text), Craft
 (visuals) are built this way today. A competitor to any of them starts from a working index, models
 and memory on its first night, not after a year of plumbing.
 
+## [GNR (Graph-Neural Retrieval)](Docs/AII/GNR.md) — AII's hybrid search:
+
+AII does not choose between keyword search and vector search; it uses both in sequence, with the graph deciding what to scan and the vectors deciding the order.
+
+**Deterministic entity search:** Query text is tokenized and matched against entity names via exact string comparison (`GraphStore.matchEntities` at `Sources/Thread/Database/Graph/GraphStore.swift:249-276`). Same query → same entities every time. Entities have no embedding field; they are found by what they're named.
+
+**Non-deterministic relationship search:** The query is embedded into a vector space (`Database.embed` at `Sources/Thread/Database/Commands/Database+Search.swift:149-158`). Relationships store embeddings representing the full assertion "subject → predicate → object" (`GraphStore.Relationship.embedding` at `Sources/Thread/Database/Graph/GraphStore.swift:29-30`). The system finds relationships whose vectors are nearest to the query vector, seeded by the matched entities to constrain the search (`GraphStore.matchRelationships` at `Sources/Thread/Database/Graph/GraphStore.swift:278-310`).
+
 ## Why gRPC
 
 The index's own traffic runs over gRPC, not REST: apps call Thread on 47090, and Thread holds a

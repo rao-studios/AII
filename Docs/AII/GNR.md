@@ -55,3 +55,20 @@ From `Database+Search.swift:63-131` and `GraphStore.swift:342-355`:
 **The seeded constraint:** `seededBy: matchedEntityIds` at line 92 constrains the relationship search to assertions involving the matched entities, preventing completely unrelated relationships from surfacing while still allowing semantic expansion within that constraint. This is why it feels intelligent rather than random — the graph structure provides grounding, and the vector search provides semantic flexibility.
 
 > Entity matching is a lookup (same input → same output), relationship matching is a similarity search (same query vector → nearest assertions in semantic space, which may not lexically overlap with the query).
+
+## Extraction Logic
+
+> This will be updated over time as we also tune the schemas for AII's indexing operations for [Ambient](https://ambient.rao.nyc), [Veil](https://veil.rao.nyc), and [Craft](https://craft.rao.nyc).
+
+**Entities extracted from the query:**
+
+Two paths depending on `request.isCode`:
+
+1. **Code mode (Craft)** (`Database+Search.swift:79-83`): `identifierScores(queryText:query, entities:requestEntities)` at line 80 calls `GraphStore.identifierTerms(queryText:queryText, entities:entities)` (line 139) to extract identifier terms from the query text itself, then matches them via `graph.matchIdentifiers(terms, hubDegreeCap:)` (line 143). The result is a `[EntityID: Float]` dictionary of matched entities with scores.
+    1. Code extraction is based on the concept of how code indexing is quite easy if we traverse a file based on semantics of a class/struct downwards towards the primitive type, scraping all the concepts in between from protocols, inherited types, until this base case of a primitive is reached. These identifies, access control modifiers, patterns are extracted as entity lookups initially to find similar patterns in a thread or a thread of others'. How we define the arrangement of these types in a developer's file and search by that to find matching patterns will be a research direction. AII's primary goal is to match the behavior of an engineer so they generate something recognizeable and not just the best possible excution of a query. Meaning defined by behavioral patterns rather than a query's end-goal primarily.
+
+2. **Non-code mode** (`Database+Search.swift:84-95`): Line 89 constructs `entityQuery = ([query] + requestEntities).joined(separator: " ")` — the raw query string concatenated with any explicit entities or tags from the request. Line 90 calls `graph.matchEntities(nameQuery: entityQuery)` which performs token-based name matching (`GraphStore.matchEntities` at `Sources/Thread/Database/Graph/GraphStore.swift:249-276`): it normalizes the query and entity names, splits on spaces, and matches entities whose name tokens are non-disjoint with the query tokens (lines 254-267).
+
+**Query embeddings piped into relationship search:**
+
+Line 73 embeds the query: `queryEmbedding = try await embed([query], provider: embeddingModelProvider)`. Lines 85-87 extract the vector as `[Float]`: `queryVector = queryEmbedding.first.flatMap { if case .floats(let v) = $0.embedding { return v } ... }`. Line 92 passes it directly to `graph.matchRelationships(embedding: $0, seededBy: matchedEntityIds)` — the query vector is the first positional argument, and the already-matched entity IDs seed the search to constrain it to relationships involving those entities.
