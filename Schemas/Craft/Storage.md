@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `3229319f` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `935cfad0` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -10,7 +10,7 @@ rebuilt from the project's files or belongs to this Mac on purpose (§9).
 | --- | --- |
 | [`craft-record.schema.json`](craft-record.schema.json) | A record (`craft-record/2`), its payloads, the ledger and an export row (§4, §6) |
 | [`craft-index.schema.json`](craft-index.schema.json) | Every document in `craft-index` as AII holds it: its kinds, their ids and entities, each payload (§2, §6, §7) |
-| [`code-card.schema.json`](code-card.schema.json) | A code card (`craft-card/1`), what `craft-code-<scope>` holds (§8) |
+| [`code-card.schema.json`](code-card.schema.json) | A code card (`craft-card/1`), what `craft-code` holds (§8) |
 | Craft's `Docs/craft-turn.schema.json` | A turn record (`craft-turn/1`), this Mac's log of one turn (§9) |
 
 All four are generated from the code (`RecordSchemaJSON`, `IndexGroupSchemaJSON`, `CardSchemaJSON`,
@@ -25,7 +25,7 @@ Four layers, each named for what it is. Only the second is knowledge Craft learn
 
 | Layer | Contents | Stored | Written by | Read by |
 | --- | --- | --- | --- | --- |
-| **Code index** (derived) | code cards — and so how the project writes code | AII (`craft-code-<scope>`) and this Mac's index | the watch engine (`ProjectWatch` → `LazyThreadIndex`) | retrieval, the knowledge window |
+| **Code index** (derived) | code cards — and so how the project writes code | AII (`craft-code`) and this Mac's index | the watch engine (`ProjectWatch` → `LazyThreadIndex`) | retrieval, the knowledge window |
 | **Craft records** (learned or told) | `project`, `approach`, `lesson`, `note`, `instruction` — each with evidence and staleness | AII (`craft-records`, `craft-index`) | the record keeper (`RecordKeeper`), `InstructionsStore` | retrieval, the prompt, the knowledge window |
 | **Bookkeeping** (not knowledge) | the recall ledger; project settings | AII (`craft-index`) | the keeper; `SettingsStore` | the keeper, `ConfigStore` |
 | **Local only** | turn logs, framework reference, global app config, the outbox | `~/.rao/apps/craft/…`, `~/Library/Application Support/Craft/config.json` | the turn, the frameworks installer, Settings | Lantern, the reference band, every process |
@@ -40,7 +40,7 @@ apps share with no account, `aii-local`. Every group begins `craft-`, every docu
 | --- | --- | --- |
 | `craft-records` | approach, lesson and note records | yes — the record query (`ThreadBoot.searchRecords`) |
 | `craft-index` | the project record, instruction records (every project's under the key `user`), the recall ledger, the settings | no — read by prefix |
-| `craft-code-<scope>` | code cards, one document per file; one group per clone | yes — code queries, this project's |
+| `craft-code` | every project's code cards, one document per file; the project is the id's first segment (`<scope>.`) and the entity `project:<scope>` | yes — code queries: this project's by its id; every project's that the graph links to it, as reference, when the session reaches every project |
 
 `craft-index` is bookkeeping as much as knowledge, and none of it is found by meaning, so an indexer knows each
 document by its kind, its id and its payload ([`craft-index.schema.json`](craft-index.schema.json)):
@@ -146,8 +146,20 @@ reads back. With AII out of reach the project layer is empty, and the session an
 ## 8. The code index
 
 **Cards** (`craft-card/1`, Craft's `Docs/code-cards.md`): one per function, type and file, filed per
-clone so two clones at different paths keep their own; this Mac's copy is under `~/.rao/apps/craft/index/<scope>/`.
-An export leaves them out: they are rebuilt from the files.
+clone under its scope in the one code group, so two clones at different paths keep their own; this Mac's copy is under
+`~/.rao/apps/craft/index/<scope>/`. An export leaves them out: they are rebuilt from the files.
+
+**One group, three lanes in the explorer.** Records, Index and Code are Craft's three groups. A code search keeps this
+project's cards by the id they start with, after naming `project:<scope>` so the node raises them and asking for three
+times the hits (`LazyThreadIndex.search`). Each document names `project:<scope>` and carries the project's `label`
+(its folder's name) in its payload, which is how a card from another project is cited.
+
+**The graph says how projects relate, never how code calls.** Each document sends a small set of relationships:
+`project:<scope> imports module:<M>` for each module the file imports, `project:<scope> declares module:<own>`,
+`module:<own> declares sym:<Type>` for its top-level types, and `sym:<Type> conforms|inherits sym:<P>` (or `type:<P>`).
+Two projects that share a module are two hops apart through it (`ThreadBoot.linkedProjects`); that link, a score over
+the reference floor and the turn's language are what let another project's card into a turn that reaches every project
+(`OtherProjects`, the context chip's Reach). Calls, references and members stay in this Mac's index, read live.
 
 A card holds one unit as written: `fn`, `type`, `file`, and `window` for code no analyzer reads. Its calls are in the
 order they are made, its members in the order they are declared, the clauses a type inherits and conforms by as

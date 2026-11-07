@@ -34,7 +34,7 @@ Three groups, one a search scope each ([`Craft/Storage.md`](Craft/Storage.md) ha
 
 | Group | Holds | Read by | Schema |
 | --- | --- | --- | --- |
-| `craft-code-<scope>` | code cards, one document per file, one group per clone | code search | [`code-card.schema.json`](Craft/code-card.schema.json) |
+| `craft-code` | every project's code cards, one document per file; the project is the id's first segment and the entity `project:<scope>` | code search: this project's by id, linked projects' as reference | [`code-card.schema.json`](Craft/code-card.schema.json) |
 | `craft-records` | `approach`, `lesson` and `note` records | search by meaning | [`craft-record.schema.json`](Craft/craft-record.schema.json) |
 | `craft-index` | the `project` record, `instruction` records, the recall `ledger`, the `settings` | prefix, never searched | [`craft-index.schema.json`](Craft/craft-index.schema.json) |
 
