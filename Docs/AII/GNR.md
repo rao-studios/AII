@@ -1,3 +1,5 @@
+[![GNR, graph-native retrieval, by Rao Studios: not RAG with a graph. A query, "how Rao started AII", is one point in the vector space, drawn as a gold ring, and goes two ways. Dashed, to the graph: the entities whose names match, Rao and AII, light up, by name. Solid, along the bottom: straight to the partitions, by vector. In the graph, the relationship "founded" lights by meaning, though the query never says it. The entity, relationship and vector strands braid into one beam that ends in a second gold ring, the partitions returned.](../README_Assets/gnr-hero.png)](../README_Assets/gnr-hero.png)
+
 # GNR (Graph-Native Retrieval)
 
 AII's system is not "RAG with a graph" — it is a unified filing model where vectors and graph coexist from the start, with entities extracted and stored alongside partitions, tags automatically joining the graph as concept entities, and search returning merged graph context across Thread nodes. The term needs to capture both the neural vector space and the symbolic knowledge structure, and signal that the graph is native to the retrieval model rather than an add-on.

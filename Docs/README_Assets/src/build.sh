@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Rebuilds the README images: HTML rendered by Google Chrome through Playwright (pip install playwright;
-# it drives the installed Chrome). No server, no GPU. Writes Docs/README_Assets/{hero,stack,join-guide,
+# it drives the installed Chrome). No server, no GPU. Writes Docs/README_Assets/{hero,gnr-hero,stack,join-guide,
 # thread-search,sewn-turn,seam-wire}.png (build.py) and {sewn-thread-seam,thread-inside,partition-index-1,partition-index-2,first-index,lineage,credibility,threads,funnel,pin-board,training,lookup-tables}.png
 # (plates.py); name targets to rebuild only those (e.g. `build.sh hero partition_index_search`).
 set -euo pipefail

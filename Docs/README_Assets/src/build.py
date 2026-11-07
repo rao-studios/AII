@@ -4,7 +4,7 @@
 
 Inputs:  this folder's rr-mark.png; Playfair Display Italic from ~/Library/Fonts. Braid's palette and
          sheet styles (Braid/README_Assets/src/build.py), so the two READMEs read as one family.
-Outputs: hero.png, stack.png, join-guide.png, thread-search.png, sewn-turn.png, seam-wire.png in argv[1].
+Outputs: hero.png, gnr-hero.png, stack.png, join-guide.png, thread-search.png, sewn-turn.png, seam-wire.png in argv[1].
 """
 
 import html
@@ -174,6 +174,120 @@ svg {{ position: absolute; left: 0; top: 0; }}
 </div>
 </body></html>"""
     shoot(browser, page, os.path.join(OUT, "hero.png"), viewport=(1200, 630), prepare=ALIGN)
+
+
+# MARK: The GNR hero
+
+# GNR.md's hero, in the AII hero's grammar: a graph, strands, a braid, a beam, a gold mark. It reads left to right
+# along Database.search (Database+Search.swift): the query is one point in the vector space (the gold ring) and
+# goes two ways. Dashed, to the graph: GraphStore.matchEntities lights the entities whose names share a token with
+# the query (Rao, AII), by name, the same every time. Solid, along the bottom: the query vector itself, straight to
+# the partitions. The graph's second strand is GraphStore.matchRelationships: the query vector against each
+# relationship's embedding, so "started" finds "founded"; every relationship touching a matched entity is admitted
+# (its score is floored at the 0.15 threshold), and one that touches neither still surfaces when its vector is near
+# the query (the lit edge at the graph's top). The three signals (entities, relationships and their predicates,
+# the vector) go into the partition search together, and the beam is the partitions it scores.
+# The query and the "founded" edge are GNR.md's own example; the graph's shape is illustrative.
+GNR_Y, GNR_QUERY, GNR_SEED, GNR_BEAM, GNR_INDEX, GNR_LOW = 470, 70, 470, 1000, 1102, 522
+HERO_VIOLET, GNR_EDGE, GNR_NODE = "#a88bd6", "#6a6862", "#9b9991"
+GNR_STRANDS = [(HERO_LINE, 452, math.pi * 0.35), (HERO_VIOLET, 452, math.pi * 1.45), (HERO_GOLD, GNR_LOW, math.pi * 0.95)]
+GNR_RAO, GNR_AII = (312, 474), (470, 452)
+GNR_NODES = {"g1": (256, 432), "g2": (252, 512), "g3": (378, 414), "g4": (388, 512), "g5": (436, 504), "g6": (438, 416), "g7": (316, 420)}
+
+
+def gnr_strand_y(x, start, phase, amplitude=40, period=230):
+    t = (x - GNR_SEED) / (GNR_BEAM - GNR_SEED)
+    apart = 1 - smoothstep(0.04, 0.62, t)
+    weave = amplitude * smoothstep(0.04, 0.4, t) * (1 - t) ** 1.1
+    return GNR_Y + (start - GNR_Y) * apart + weave * math.sin(2 * math.pi * (x - GNR_SEED) / period + phase)
+
+
+def gnr_strand_path(start, phase, from_query=False):
+    """A strand from the seed on, or, for the gold one, from the query ring, easing down under the graph first."""
+    points, x = [], (GNR_QUERY + 9.5 if from_query else GNR_SEED)
+    while x <= GNR_BEAM:
+        if x < GNR_SEED:
+            y = GNR_Y + (start - GNR_Y) * smoothstep(GNR_QUERY, 210, x)
+        else:
+            y = gnr_strand_y(x, start, phase)
+        points.append((x, y))
+        x += 3
+    return "M" + " L".join(f"{px:.1f},{py:.1f}" for px, py in points)
+
+
+def gnr_graph():
+    nodes = {"rao": GNR_RAO, "aii": GNR_AII, **GNR_NODES}
+
+    def edge(a, b, colour, width, opacity):
+        (xa, ya), (xb, yb) = nodes[a], nodes[b]
+        return (f'<line x1="{xa}" y1="{ya}" x2="{xb}" y2="{yb}" stroke="{colour}" stroke-width="{width}" '
+                f'stroke-linecap="round" opacity="{opacity}"/>')
+
+    # Not touching a matched entity, nor near the query: left alone.
+    quiet = [("g1", "g2"), ("g4", "g5"), ("g1", "g7"), ("g7", "g3")]
+    # Touching Rao or AII: admitted, whatever their vectors say.
+    admitted = [("rao", "g1"), ("rao", "g2"), ("rao", "g3"), ("rao", "g4"), ("aii", "g6"), ("aii", "g5")]
+    parts = [edge(a, b, GNR_EDGE, 1.3, .75) for a, b in quiet]
+    parts += [edge(a, b, HERO_VIOLET, 1.6, .42) for a, b in admitted]
+    parts.append(edge("g3", "g6", HERO_VIOLET, 3.2, .9))        # lit by its vector alone
+    parts.append(edge("rao", "aii", HERO_VIOLET, 3.8, 1))       # the founded assertion
+    for x, y in GNR_NODES.values():
+        parts.append(f'<circle cx="{x}" cy="{y}" r="4.6" fill="{GNR_NODE}" stroke="#151513" stroke-width="2"/>')
+    for x, y in (GNR_RAO, GNR_AII):                              # matched by name
+        parts.append(f'<circle cx="{x}" cy="{y}" r="13" fill="none" stroke="{HERO_GOLD}" stroke-width="1.6" opacity=".85"/>'
+                     f'<circle cx="{x}" cy="{y}" r="7.6" fill="{HERO_LINE}" stroke="#151513" stroke-width="2"/>')
+    return "".join(parts)
+
+
+def gnr_hero(browser):
+    strands = "".join(
+        f'<path d="{gnr_strand_path(start, phase, from_query=colour == HERO_GOLD)}" fill="none" stroke="{colour}" '
+        f'stroke-width="{3.2 if colour == HERO_GOLD else 3.6}" stroke-linecap="round"/>' for colour, start, phase in GNR_STRANDS)
+    ring = lambda x: (f'<circle cx="{x}" cy="{GNR_Y}" r="9.5" fill="#161614" stroke="{HERO_GOLD}" stroke-width="2.4"/>'
+                      f'<circle cx="{x}" cy="{GNR_Y}" r="4" fill="{HERO_GOLD}"/>')
+    rx, ry = GNR_RAO
+    ax, ay = GNR_AII
+    page = f"""<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face {{ font-family: "Playfair"; font-style: italic; font-weight: 400 900; src: url("file://{PLAYFAIR}") format("truetype"), local("Playfair Display Italic"); }}
+html, body {{ margin: 0; width: 1200px; height: 630px; overflow: hidden; }}
+body {{ position: relative; font-family: "Playfair", Georgia, serif; font-style: italic;
+       background: radial-gradient(ellipse 90% 100% at 22% 20%, #20201c 0%, #191917 45%, #121211 100%); }}
+.mark {{ position: absolute; left: 46px; top: 52px; width: 72px; }}
+.caption {{ position: absolute; left: 132px; top: 72px; letter-spacing: .3em; font-size: 16.5px; color: #8b8a84; font-variant-numeric: lining-nums; }}
+.title {{ position: absolute; left: 34px; top: 112px; padding-left: 40px; font-size: 220px; line-height: 1; font-weight: 500; letter-spacing: .02em;
+         background: linear-gradient(100deg, #8d9097 0%, #c8cad0 35%, #f2f3f6 58%, #b6b9c1 100%);
+         -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: 30px; }}
+.sub {{ position: absolute; left: 53.5px; top: 334px; font-size: 45px; color: #9b9991; }}
+svg {{ position: absolute; left: 0; top: 0; }}
+svg text {{ font-family: "Playfair", Georgia, serif; font-style: italic; font-size: 17px; fill: #8b8a84; }}
+svg text.hi {{ fill: #e9e7e0; }}
+svg text .hi {{ fill: #e9e7e0; }}
+.legend {{ position: absolute; left: 54.5px; top: 560px; width: 1061.5px; display: flex; gap: 30px; align-items: baseline; font-size: 23px; color: #8b8a84; white-space: nowrap; }}
+.legend b {{ font-weight: 400; color: #e9e7e0; }}
+.dot {{ display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 10px; transform: translateY(-1px); }}
+.tag {{ margin-left: auto; }}
+</style></head><body>
+<img class="mark" src="rr-mark.png">
+<div class="caption">RAO STUDIOS · AMBIENT INTELLIGENCE INDEX · RETRIEVAL</div>
+<svg width="1200" height="630">{gnr_graph()}{strands}
+  <line x1="{GNR_QUERY + 14}" y1="{GNR_Y + 1}" x2="{rx - 20}" y2="{ry - 2}" stroke="{HERO_GOLD}" stroke-width="1.8" stroke-dasharray="6 5" stroke-linecap="round"/>
+  <line x1="{GNR_BEAM}" y1="{GNR_Y}" x2="{GNR_INDEX - 10}" y2="{GNR_Y}" stroke="{HERO_LINE}" stroke-width="3" stroke-linecap="round"/>
+  {ring(GNR_QUERY)}{ring(GNR_INDEX)}
+  <text x="54.5" y="{GNR_Y - 30}">how <tspan class="hi">Rao</tspan> started <tspan class="hi">AII</tspan></text>
+  <text x="{rx}" y="{ry + 34}" text-anchor="middle" class="hi">Rao</text>
+  <text x="{ax + 6}" y="{ay + 34}" text-anchor="middle" class="hi">AII</text>
+  <text x="{(rx + ax) / 2}" y="{(ry + ay) / 2 - 13}" text-anchor="middle" style="fill:{HERO_VIOLET}">founded</text>
+</svg>
+<div class="title">GNR</div>
+<div class="sub">graph-native retrieval</div>
+<div class="legend">
+  <span><i class="dot" style="background:{HERO_LINE}"></i><b>Entities</b> · by name</span>
+  <span><i class="dot" style="background:{HERO_VIOLET}"></i><b>Relationships</b> · by meaning</span>
+  <span><i class="dot" style="background:{HERO_GOLD}"></i><b>Partitions</b> · by vector</span>
+  <span class="tag">not RAG with a graph</span>
+</div>
+</body></html>"""
+    shoot(browser, page, os.path.join(OUT, "gnr-hero.png"), viewport=(1200, 630), prepare=ALIGN)
 
 
 # MARK: Shared sheet styles (Braid's legend and CLI guide)
@@ -681,7 +795,7 @@ svg {{ position: absolute; left: 0; top: 0; }}
     shoot(browser, page, os.path.join(OUT, "seam-wire.png"), selector="#sheet", viewport=(1300, 1500), scale=2)
 
 
-ALL = ["hero", "stack", "join_guide", "thread_search", "sewn_turn", "seam_wire"]
+ALL = ["hero", "gnr_hero", "stack", "join_guide", "thread_search", "sewn_turn", "seam_wire"]
 
 
 def main():
