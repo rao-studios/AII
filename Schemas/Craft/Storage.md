@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `935cfad0` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `8e73f5ca (with uncommitted changes)` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -156,10 +156,17 @@ times the hits (`LazyThreadIndex.search`). Each document names `project:<scope>`
 
 **The graph says how projects relate, never how code calls.** Each document sends a small set of relationships:
 `project:<scope> imports module:<M>` for each module the file imports, `project:<scope> declares module:<own>`,
-`module:<own> declares sym:<Type>` for its top-level types, and `sym:<Type> conforms|inherits sym:<P>` (or `type:<P>`).
-Two projects that share a module are two hops apart through it (`ThreadBoot.linkedProjects`); that link, a score over
-the reference floor and the turn's language are what let another project's card into a turn that reaches every project
-(`OtherProjects`, the context chip's Reach). Calls, references and members stay in this Mac's index, read live.
+`module:<own> declares sym:<Type>` for its top-level types (`file:<path> declares sym:<Type>` for a file in no module, such as an Xcode app's sources), and `sym:<Type> conforms|inherits sym:<P>` (or `type:<P>`).
+Those are the parser's facts. **What a type is for is Thread's reading**: a deposit filed with `relate_code`
+(`index.codeRelations`, on by default, Settings › Knowledge › Relations) is read once more by Thread's on-device model
+after it is filed, for the types the file declares only, and Thread adds `sym:<Type> serves <goal>` and `project:<scope> pursues <goal>`, a goal being an
+entity of kind `goal` named by a short phrase. Thread offers the goals it already holds nearest the file first, so two
+projects solving the same problem meet at one goal; Craft writes none of it and keeps no list. Two projects are linked
+when one declares a module the other imports, or both pursue a goal, found two hops from the project's entity
+(`ThreadBoot.linkedProjects`). Importing the same module links nothing: every project in a language imports its
+standard library. That link, a score over the reference floor and the turn's language are what let another project's
+card into a turn that reaches every project (`OtherProjects`, the context chip's Reach). Calls, references and members
+stay in this Mac's index, read live.
 
 A card holds one unit as written: `fn`, `type`, `file`, and `window` for code no analyzer reads. Its calls are in the
 order they are made, its members in the order they are declared, the clauses a type inherits and conforms by as
