@@ -60,6 +60,9 @@ enum LocalOnlyGrant {
         // secret alone.
         Route(method: .get, endpointPath: "/v1/threads"),
         Route(method: .get, endpointPath: "/v1/stats"),
+        // Federated retrieval for a local app (Weave): the caller's lane, every node in its
+        // scope, answered as the lane's owner. Filing (/v1/embeddings) still wants an account.
+        Route(method: .post, endpointPath: "/v1/search"),
     ]
 
     /// The routes the stack identity may reach with no bearer: what the aii command

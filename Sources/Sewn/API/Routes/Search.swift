@@ -24,6 +24,7 @@ func registerSearchRoute(
         let result = try await sewn.search(
             searchRequest.query,
             request: try searchRequest.sewn.from(context),
+            topK: min(max(searchRequest.topK ?? 3, 1), 50),
             enableSinatraPark: searchRequest.train
         )
         

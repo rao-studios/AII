@@ -6,7 +6,7 @@
 //  Copyright © 2026 Rao Studios LLC.
 //
 //  A local app with no account may take the lane: the stack secret names it, and
-//  on thirteen routes that is identity enough. It is answered as its lane's owner
+//  on fourteen routes that is identity enough. It is answered as its lane's owner
 //  in the manifest: its own (local-<app>) or the shared aii-local. Everywhere
 //  else a bearer is still required, an open server grants nothing, a presented
 //  token is never downgraded, and a local-only caller reaches a hosted provider
@@ -68,9 +68,9 @@ final class LocalOnlyGrantTests: XCTestCase {
         protected.post("/v1/vision/ontology") { _, c in Self.whoami(c) }
         protected.get("/v1/threads") { _, c in Self.whoami(c) }
         protected.get("/v1/stats") { _, c in Self.whoami(c) }
-        // Not granted: the same path under another method, and three account routes.
-        protected.delete("/v1/providers/local/sinatra/traces/:traceId") { _, c in Self.whoami(c) }
         protected.post("/v1/search") { _, c in Self.whoami(c) }
+        // Not granted: the same path under another method, and two account routes.
+        protected.delete("/v1/providers/local/sinatra/traces/:traceId") { _, c in Self.whoami(c) }
         protected.get("/v1/account/keys") { _, c in Self.whoami(c) }
         protected.get("/v1/account/plan") { _, c in Self.whoami(c) }
         return Application(router: router)
@@ -91,6 +91,8 @@ final class LocalOnlyGrantTests: XCTestCase {
         // The index status every app shows, with the app's secret alone.
         (.get, "/v1/threads"),
         (.get, "/v1/stats"),
+        // Federated retrieval (Weave), answered as the lane's owner.
+        (.post, "/v1/search"),
     ]
 
     // MARK: - The grant
@@ -113,7 +115,6 @@ final class LocalOnlyGrantTests: XCTestCase {
     func testEveryOtherProtectedRouteStillWantsABearer() async throws {
         try await app(shared).test(.router) { client in
             let refused: [(HTTPRequest.Method, String)] = [
-                (.post, "/v1/search"),
                 (.get, "/v1/account/keys"),
                 (.get, "/v1/account/plan"),
                 (.delete, "/v1/providers/local/sinatra/traces/\(UUID().uuidString)"),
