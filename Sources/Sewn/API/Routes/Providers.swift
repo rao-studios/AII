@@ -291,7 +291,7 @@ func registerProvidersRoutes(
 
     /// Delete an on-device model from this Mac. Refused for the model in use or loading —
     /// the vision model while its slot holds it, too — and for the models the stack itself
-    /// runs (`AIIModels.kept`: the standard general model and the embedder). Every other
+    /// runs (`AIIModels.kept`: the smallest general model, Thread's extractor, and the embedder). Every other
     /// master-list model may go: a client downloads it again on request (Ambient's
     /// Settings › On-device).
     router.post("/v1/providers/local/remove") { request, context async throws -> LocalModelInfo in

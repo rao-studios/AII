@@ -160,7 +160,7 @@ actor LocalModelStore: Downloader {
     /// Delete every copy of `id` a load would find, and any Hub cache copy an earlier build's
     /// download left beside it (those kept the weights twice). `inUse` is the
     /// model Sewn would run on-device right now, `kept` the models the stack itself runs
-    /// (`AIIModels.kept`: the standard general model and the embedder) and expects on disk.
+    /// (`AIIModels.kept`: the smallest general model, Thread's extractor, and the embedder) and expects on disk.
     func remove(_ id: String, inUse: Set<String>, kept: Set<String>) throws {
         let id = try LocalModelStoreError.validated(id)
         guard !kept.contains(where: { $0.caseInsensitiveCompare(id) == .orderedSame }) else {
