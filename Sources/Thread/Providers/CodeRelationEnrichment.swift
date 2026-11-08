@@ -2,6 +2,9 @@
 //  CodeRelationEnrichment.swift
 //  Thread
 //
+//  Created by Ritesh Pakala on 11/07/26.
+//  Copyright © 2026 Rao Studios LLC.
+//
 //  WHAT: Code relations — the index-time twin of a search's media_type "code". A code document
 //        filed with `relate_code` is read once more, after it is filed, by the node's extractor:
 //        what is each of its types for? The answer joins the graph its filer gave it, as
