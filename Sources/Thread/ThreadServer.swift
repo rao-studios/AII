@@ -87,10 +87,18 @@ func configureRoutes(
     embeddingModelProvider: any EmbeddingProviding,
     graphExtractor: any GraphExtracting,
     stack: StackMode,
-    resolver: LaneResolver = .unscoped
+    resolver: LaneResolver = .unscoped,
+    extractorGate: GraphExtractorGate? = nil,
+    codeRelations: CodeRelationQueue? = nil
 ) {
-    registerHealthRoute(router, stack: stack) {
+    registerHealthRoute(router, stack: stack, embedder: {
         HealthEmbedder(provider: embeddingModelProvider, index: await database.indexState)
+    }, extractor: {
+        guard let extractorGate else { return nil }
+        return await ExtractorStatus.current(gate: extractorGate, relations: codeRelations)
+    })
+    if let extractorGate {
+        registerExtractorRoutes(router, gate: extractorGate, relations: codeRelations)
     }
     registerSearchRoute(router, database, embeddingModelProvider: embeddingModelProvider, resolver: resolver)
     registerBatchEmbeddingsRoute(router, database, embeddingModelProvider: embeddingModelProvider,
@@ -207,7 +215,11 @@ public struct ThreadServer: AsyncParsableCommand {
         }
         let database = Database(nodeId: fixedNodeId)
         let embeddingModelProvider: any EmbeddingProviding = makeEmbeddingProvider()
-        let graphExtractor: any GraphExtracting = makeGraphExtractor()
+        let graphExtractor = makeGraphExtractor()
+        // Code relations wait in one line and are read one at a time through the gate (CodeRelationQueue).
+        let codeRelations = CodeRelationQueue(database: database, extractor: graphExtractor,
+                                              embedder: embeddingModelProvider,
+                                              accepts: { await graphExtractor.isEnabled })
 
         // Fetch and load the embedder now: a first run downloads it, and the first
         // filing should not be what waits. Then hold the table against its stamp.
@@ -241,13 +253,14 @@ public struct ThreadServer: AsyncParsableCommand {
 
         // ── Register ALL routes before Application.init freezes the responder ────
         configureRoutes(router, database, embeddingModelProvider: embeddingModelProvider,
-                        graphExtractor: graphExtractor, stack: stack, resolver: resolver)
+                        graphExtractor: graphExtractor, stack: stack, resolver: resolver,
+                        extractorGate: graphExtractor, codeRelations: codeRelations)
 
         // ── GRPC Server ────────────────────
         let grpcServer = ThreadGRPCServer()
         await grpcServer.start(database: database, embeddingProvider: embeddingModelProvider,
                                graphExtractor: graphExtractor, host: host, grpcPort: grpcPort,
-                               stack: stack, resolver: resolver)
+                               stack: stack, resolver: resolver, codeRelations: codeRelations)
 
         // A Thread can dial a Sewn mothership and/or a Fleet destination. Both reuse
         // the same destination-agnostic dispatcher (it serves search/library/graph).
@@ -266,7 +279,8 @@ public struct ThreadServer: AsyncParsableCommand {
                 embeddingProvider: embeddingModelProvider,
                 graphExtractor: graphExtractor,
                 logger: logger,
-                resolver: resolver
+                resolver: resolver,
+                codeRelations: codeRelations
             )
 
             if !mothershipHost.isEmpty {
@@ -370,15 +384,18 @@ public struct ThreadServer: AsyncParsableCommand {
     }
 
     /// LLM extraction backend selection: on-device MLX (default), Mistral API,
-    /// or keyword-only. Extraction failures never fail ingest — GraphEnrichment
-    /// keeps the keyword entities.
-    private func makeGraphExtractor() -> any GraphExtracting {
+    /// or keyword-only, behind the one gate every reading goes through (GraphExtractorGate).
+    /// Extraction failures never fail ingest — GraphEnrichment keeps the keyword entities.
+    private func makeGraphExtractor() -> GraphExtractorGate {
         var logger = Logger(label: "thread")
         logger.logLevel = .debug
+        func keyword() -> GraphExtractorGate {
+            GraphExtractorGate(inner: KeywordGraphExtractionProvider(), backend: .keyword, model: nil, logger: logger)
+        }
 
         guard !noGraphExtraction else {
             logger.info("Graph extraction: disabled — keyword entities only")
-            return KeywordGraphExtractionProvider()
+            return keyword()
         }
 
         switch graphBackend {
@@ -388,7 +405,7 @@ public struct ThreadServer: AsyncParsableCommand {
             if key.isEmpty {
                 guard keys.isFileBacked else {
                     logger.warning("Graph extraction: Mistral backend requested but MISTRAL_API_KEY is not set — falling back to keyword extraction.")
-                    return KeywordGraphExtractionProvider()
+                    return keyword()
                 }
                 // A shared stack reads the key per call: a user who saves one
                 // after launch gets extraction without a restart. Until then
@@ -396,23 +413,25 @@ public struct ThreadServer: AsyncParsableCommand {
                 logger.warning("Graph extraction: no Mistral key yet in AII_HOME/keys — extraction starts once one is saved.")
             }
             logger.info("Graph extraction: Mistral API (\(graphMistralModel))")
-            return MistralGraphExtractionProvider(model: graphMistralModel, logger: logger)
+            return GraphExtractorGate(inner: MistralGraphExtractionProvider(model: graphMistralModel, logger: logger),
+                                      backend: .mistral, model: graphMistralModel, logger: logger)
 
         case "mlx":
             #if canImport(MLX)
             if MLXRuntimeProbe.metalKernelLibraryAvailable() {
-                logger.info("Graph extraction: MLX (\(graphModel))")
-                return MLXGraphExtractionProvider(modelId: graphModel, modelsHome: Self.modelsHome())
+                logger.info("Graph extraction: MLX (\(graphModel)), one reading at a time, released after \(Int(GraphExtractorGate.defaultIdleRelease)) s idle")
+                return GraphExtractorGate(inner: MLXGraphExtractionProvider(modelId: graphModel, modelsHome: Self.modelsHome()),
+                                          backend: .mlx, model: graphModel, logger: logger)
             }
             logger.warning("Graph extraction: MLX requested but this build has no Metal kernel library (default.metallib) — MLX would abort the process on first use. Falling back to keyword extraction; use --graph-backend mistral for API extraction, or rebuild Frigate with its metallib step.")
             #else
             logger.warning("Graph extraction: MLX backend requested but this build has no MLX support — falling back to keyword extraction (use --graph-backend mistral for API extraction).")
             #endif
-            return KeywordGraphExtractionProvider()
+            return keyword()
 
         default:
             logger.info("Graph extraction: keyword backend")
-            return KeywordGraphExtractionProvider()
+            return keyword()
         }
     }
 }

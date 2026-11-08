@@ -28,6 +28,9 @@ struct HealthResponse: ResponseCodable {
     /// The embedding model and the index it writes. Absent when unknown. Launchers
     /// read it to show a first-run download and a model change.
     let embedder: HealthEmbedder?
+    /// The graph extractor: switched on or off, its model and whether it is loaded, what waits,
+    /// and what this node's GPU holds (GET /v1/graph/extractor). Absent on a node built without one.
+    let extractor: ExtractorStatus?
 }
 
 /// What `/health` says about embedding: the model, whether it can answer yet, and
@@ -62,7 +65,8 @@ struct HealthEmbedder: Codable, Sendable, Equatable {
 func registerHealthRoute(
     _ app: some RouterMethods<ThreadRequestContext>,
     stack: StackMode,
-    embedder: @escaping @Sendable () async -> HealthEmbedder? = { nil }
+    embedder: @escaping @Sendable () async -> HealthEmbedder? = { nil },
+    extractor: @escaping @Sendable () async -> ExtractorStatus? = { nil }
 ) {
     app.get("/health") { request, _ async throws -> HealthResponse in
         // On the shared stack the proof is for the identity X-AII-App names (every
@@ -77,7 +81,8 @@ func registerHealthRoute(
             proof: answer.proof,
             app: answer.app?.rawValue,
             contract: answer.contract,
-            embedder: await embedder()
+            embedder: await embedder(),
+            extractor: await extractor()
         )
     }
 }

@@ -44,11 +44,55 @@ enum GraphExtractionParser {
 
     enum ParseError: Error { case noJSONObject, decodeFailed }
 
+    /// The answer as models write it. PIN: a small model keeps the content and loosens the shape — Granite 4.0
+    /// H-Micro writes an entity as a bare name and a relationship as `["subject","predicate","object"]` — so both
+    /// shapes are read, and an item in neither (a relationship of four parts) is skipped, not the whole answer.
     private struct Raw: Decodable {
-        struct Entity: Decodable { let name: String; let kind: String? }
-        struct Relation: Decodable { let subject: String; let predicate: String; let object: String }
+        struct Entity: Decodable {
+            let name: String
+            let kind: String?
+            init(from decoder: Decoder) throws {
+                if let name = try? decoder.singleValueContainer().decode(String.self) {
+                    self.name = name
+                    self.kind = nil
+                    return
+                }
+                let container = try decoder.container(keyedBy: Keys.self)
+                name = try container.decode(String.self, forKey: .name)
+                kind = try container.decodeIfPresent(String.self, forKey: .kind)
+            }
+            enum Keys: String, CodingKey { case name, kind }
+        }
+        struct Relation: Decodable {
+            let subject: String
+            let predicate: String
+            let object: String
+            init(from decoder: Decoder) throws {
+                if let parts = try? decoder.singleValueContainer().decode([String].self) {
+                    guard parts.count == 3 else { throw ParseError.decodeFailed }
+                    (subject, predicate, object) = (parts[0], parts[1], parts[2])
+                    return
+                }
+                let container = try decoder.container(keyedBy: Keys.self)
+                subject = try container.decode(String.self, forKey: .subject)
+                predicate = try container.decode(String.self, forKey: .predicate)
+                object = try container.decode(String.self, forKey: .object)
+            }
+            enum Keys: String, CodingKey { case subject, predicate, object }
+        }
+        /// Decodes to nil instead of failing the list it sits in.
+        struct Lenient<T: Decodable>: Decodable {
+            let value: T?
+            init(from decoder: Decoder) throws { value = try? T(from: decoder) }
+        }
         let entities: [Entity]?
         let relationships: [Relation]?
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: Keys.self)
+            entities = try container.decodeIfPresent([Lenient<Entity>].self, forKey: .entities)?.compactMap(\.value)
+            relationships = try container.decodeIfPresent([Lenient<Relation>].self, forKey: .relationships)?.compactMap(\.value)
+        }
+        enum Keys: String, CodingKey { case entities, relationships }
     }
 
     /// Parses and validates the model's response into a `GraphPayload`.
@@ -248,12 +292,14 @@ enum MLXRuntimeProbe {
 /// PIN: `--graph-model` may name a multi-gigabyte model (Ambient names Sewn's on-device one,
 /// resident here as a second copy so extraction never waits on a reply). Readings that arrive
 /// while it loads share the one load: two loads would be two copies resident.
-actor MLXGraphExtractionProvider: GraphExtracting {
-    /// What a Thread run on its own extracts with: Mistral Nemo, the standard on-device model
-    /// every Rao app shares (OnDeviceModelCatalog in Ambient), already in ~/.rao on any Mac
-    /// that runs Ambient on-device. Embedding is a separate model (voyage-4-nano).
-    /// The AII master list's standard general model (the one Sewn also runs).
-    static let defaultModel = AIIModels.generalStandard.pinnedSpec
+/// PIN: every caller reaches it through GraphExtractorGate, which admits one reading at a time and
+/// lets the model go when idle or switched off (`releaseModel`).
+actor MLXGraphExtractionProvider: ReleasableExtractor {
+    /// What a Thread extracts with unless told otherwise: the AII master list's smallest general
+    /// model, Granite 4.0 H-Micro, a hybrid of Mamba2 and attention layers whose state stays a
+    /// few tens of megabytes however long a reading runs (Rao's mirror, pinned). Embedding is a
+    /// separate model (voyage-4-nano).
+    static let defaultModel = AIIModels.generalSmall.pinnedSpec
 
     /// `org/repo` or `org/repo@<revision>`, as `--graph-model` names it.
     private let modelId: String
@@ -288,6 +334,20 @@ actor MLXGraphExtractionProvider: GraphExtracting {
         return try await session.respond(to: String(input.prefix(maxInputChars)))
     }
 
+    var isModelLoaded: Bool { loading != nil }
+
+    /// Drops the model so its weights leave the GPU, then the allocator's cache. A load in flight finishes
+    /// first, so its container is never left half made. The gate calls this only while no reading runs.
+    func releaseModel(logger: Logger) async -> Bool {
+        guard let task = loading else { return false }
+        _ = try? await task.value
+        guard loading == task else { return false }
+        loading = nil
+        MLX.Memory.clearCache()
+        logger.info("Released MLX extraction model: \(modelId) — MLX now holds \(MLX.Memory.activeMemory / 1_048_576) MB active, \(MLX.Memory.cacheMemory / 1_048_576) MB cached")
+        return true
+    }
+
     private func loadedModel(logger: Logger) async throws -> ModelContainer {
         if let loading { return try await loading.value }
         let modelId = modelId
@@ -313,8 +373,12 @@ actor MLXGraphExtractionProvider: GraphExtracting {
     }
 
     /// `org/repo@<revision>` loads that commit; a bare `org/repo` loads `main`. The revision
-    /// is never part of the repo id, or the Hub looks for a repo that doesn't exist.
+    /// is never part of the repo id, or the Hub looks for a repo that doesn't exist. An absolute
+    /// path (or `~/…`) is a model folder on disk, loaded as it is: a mirror checked before upload.
     static func configuration(for spec: String) -> ModelConfiguration {
+        if spec.hasPrefix("/") || spec.hasPrefix("~/") {
+            return ModelConfiguration(directory: URL(fileURLWithPath: (spec as NSString).expandingTildeInPath, isDirectory: true))
+        }
         let parts = spec.split(separator: "@", maxSplits: 1).map(String.init)
         guard parts.count == 2, !parts[1].isEmpty else { return ModelConfiguration(id: spec) }
         return ModelConfiguration(id: parts[0], revision: parts[1])

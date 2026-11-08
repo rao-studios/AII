@@ -101,20 +101,27 @@ extension Database {
     /// the end goals its types serve (CodeRelationEnrichment), its new relationships are embedded as any filing's are
     /// (GraphEnrichment), and its graph is re-applied behind the put in the write queue, so it lands on the document as
     /// filed. A document filed again meanwhile is the newer filing's to relate: re-applying to a document no longer held
-    /// does nothing.
+    /// does nothing. Filings reach this through CodeRelationQueue, one reading at a time.
     func relateCode(_ items: [Database.BatchPutItem], extractor: (any GraphExtracting)?, embedder: any EmbeddingProviding,
                     request: DatabaseRequest) async {
         guard let extractor else { return }
-        for item in items where item.mediaType == .code {
-            guard let related = await CodeRelationEnrichment.relate(item, extractor: extractor, existingGraph: graph, logger: baseLogger) else {
-                continue
-            }
-            var reading = item
-            reading.graph = related
-            reading.needsExtraction = false
-            let embedded = await GraphEnrichment.run(items: [reading], extractor: nil, embedder: embedder, existingGraph: graph, logger: baseLogger)
-            guard let payload = embedded.first?.graph else { continue }
-            enqueueReapplyGraph(item.id, payload: payload, request: request)
+        for item in items {
+            await relate(item, extractor: extractor, embedder: embedder, request: request)
         }
+    }
+
+    /// One code item's reading (see relateCode).
+    func relate(_ item: Database.BatchPutItem, extractor: any GraphExtracting, embedder: any EmbeddingProviding,
+                request: DatabaseRequest) async {
+        guard item.mediaType == .code,
+              let related = await CodeRelationEnrichment.relate(item, extractor: extractor, existingGraph: graph, logger: baseLogger) else {
+            return
+        }
+        var reading = item
+        reading.graph = related
+        reading.needsExtraction = false
+        let embedded = await GraphEnrichment.run(items: [reading], extractor: nil, embedder: embedder, existingGraph: graph, logger: baseLogger)
+        guard let payload = embedded.first?.graph else { return }
+        enqueueReapplyGraph(item.id, payload: payload, request: request)
     }
 }

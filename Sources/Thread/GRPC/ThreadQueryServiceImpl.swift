@@ -21,6 +21,8 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
     let embeddingProvider: any EmbeddingProviding
     let graphExtractor: any GraphExtracting
     let resolver: LaneResolver
+    /// The one line code relations wait in (shared by the direct port and the session dispatcher).
+    let codeRelations: CodeRelationQueue
 
     /// Search-scoped embedding cache (process-wide: the session dispatcher
     /// and direct gRPC each hold an impl, both should share hits). The model
@@ -28,11 +30,14 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
     static let queryEmbeddingCache = QueryEmbeddingCache()
 
     init(database: Database, embeddingProvider: any EmbeddingProviding,
-         graphExtractor: any GraphExtracting, resolver: LaneResolver = .unscoped) {
+         graphExtractor: any GraphExtracting, resolver: LaneResolver = .unscoped,
+         codeRelations: CodeRelationQueue? = nil) {
         self.database = database
         self.embeddingProvider = embeddingProvider
         self.graphExtractor = graphExtractor
         self.resolver = resolver
+        self.codeRelations = codeRelations
+            ?? CodeRelationQueue(database: database, extractor: graphExtractor, embedder: embeddingProvider)
     }
 
     // MARK: - Direct port (ServiceProtocol)
@@ -391,7 +396,7 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
         let capturedItems = putItems
         let capturedReq = databaseReq
         let relatesCode = request.relateCode
-        Task.detached(priority: .userInitiated) { [database, graphExtractor, embeddingProvider] in
+        Task.detached(priority: .userInitiated) { [database, graphExtractor, embeddingProvider, codeRelations] in
             let enriched = await GraphEnrichment.run(
                 items: capturedItems,
                 extractor: graphExtractor,
@@ -400,12 +405,10 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
                 logger: database.baseLogger
             )
             await database.enqueuePut(enriched, request: capturedReq)
-            // Code relations: read after the put, so the code is searchable first (CodeRelationEnrichment), and as
-            // background work, so filing, search and the health check go first.
+            // Code relations: read after the put, so the code is searchable first (CodeRelationEnrichment), one at a time
+            // in the node's one line (CodeRelationQueue), behind any app that is generating (GraphExtractorGate).
             guard relatesCode else { return }
-            Task.detached(priority: .background) {
-                await database.relateCode(enriched, extractor: graphExtractor, embedder: embeddingProvider, request: capturedReq)
-            }
+            await codeRelations.enqueue(enriched, request: capturedReq)
         }
 
         var response = Thread_V1_ThreadIndexResponse()

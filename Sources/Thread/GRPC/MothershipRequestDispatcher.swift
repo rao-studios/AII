@@ -27,9 +27,11 @@ final class MothershipRequestDispatcher: SessionRequestHandling, Sendable {
     private let logger: Logger
 
     init(database: Database, embeddingProvider: any EmbeddingProviding,
-         graphExtractor: any GraphExtracting, logger: Logger, resolver: LaneResolver = .unscoped) {
+         graphExtractor: any GraphExtracting, logger: Logger, resolver: LaneResolver = .unscoped,
+         codeRelations: CodeRelationQueue? = nil) {
         queryImpl   = ThreadQueryServiceImpl(database: database, embeddingProvider: embeddingProvider,
-                                            graphExtractor: graphExtractor, resolver: resolver)
+                                            graphExtractor: graphExtractor, resolver: resolver,
+                                            codeRelations: codeRelations)
         libraryImpl = ThreadLibraryServiceImpl(database: database, resolver: resolver)
         graphImpl   = ThreadGraphServiceImpl(database: database, embeddingProvider: embeddingProvider, resolver: resolver)
         updateImpl  = ThreadUpdateServiceImpl(database: database, resolver: resolver)
