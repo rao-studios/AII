@@ -17,7 +17,7 @@
 //        the graph already holds that sit nearest are offered first, so a goal is written once and
 //        every type in any project that serves it connects to it: two ways to the same end.
 //  PIN:  NEVER ON THE FILING'S PATH. The document is put first and is searchable at once; this
-//        reading lands after it, queued behind the put (Database.relateCode).
+//        reading lands after it, in the node's one line (CodeRelationQueue), read through the gate (GraphExtractorGate).
 //
 
 import Foundation

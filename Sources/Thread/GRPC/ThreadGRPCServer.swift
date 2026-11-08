@@ -23,10 +23,12 @@ actor ThreadGRPCServer {
         host: String,
         grpcPort: Int,
         stack: StackMode,
-        resolver: LaneResolver = .unscoped
+        resolver: LaneResolver = .unscoped,
+        codeRelations: CodeRelationQueue? = nil
     ) {
         let query   = ThreadQueryServiceImpl(database: database, embeddingProvider: embeddingProvider,
-                                            graphExtractor: graphExtractor, resolver: resolver)
+                                            graphExtractor: graphExtractor, resolver: resolver,
+                                            codeRelations: codeRelations)
         let library = ThreadLibraryServiceImpl(database: database, resolver: resolver)
         let graph   = ThreadGraphServiceImpl(database: database, embeddingProvider: embeddingProvider, resolver: resolver)
         let update  = ThreadUpdateServiceImpl(database: database, resolver: resolver)

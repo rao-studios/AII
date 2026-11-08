@@ -68,6 +68,15 @@ final class Flow4_ExtractionTests: XCTestCase {
         XCTAssertEqual(payload.entities.first?.kind, "concept")
     }
 
+    /// PIN: a small model's looser shape still parses: an entity as a bare name, a relationship as a three-part array;
+    /// a relationship of four parts is skipped, not the answer (Granite 4.0 H-Micro, 2026-11-07).
+    func test_parser_readsBareNamesAndArrayTriples_skipsOtherShapes() throws {
+        let json = #"{"entities":["Ambient","Craft",{"name":"coding app","kind":"concept"}],"relationships":[["Craft","is","coding app"],["Ambient","links","people","places"],{"subject":"Craft","predicate":"files into","object":"Ambient"}]}"#
+        let payload = try GraphExtractionParser.parse(json)
+        XCTAssertEqual(payload.entities.map(\.name), ["Ambient", "Craft", "coding app"])
+        XCTAssertEqual(payload.relationships.map(\.predicate), ["is", "files into"])
+    }
+
     func test_parser_throwsOnMalformedInput() {
         XCTAssertThrowsError(try GraphExtractionParser.parse("there is no json object here"))
     }
