@@ -223,7 +223,9 @@ actor TableMutator {
         cache.update(table)
         graphCache.update(graphStore)
         bump()
-        await saveBoth(table, graphStore)
+        // Saved as a put is, a second later and off the write queue: code relations re-apply one document at a
+        // time, and saving both stores for each (two full files, ~200 MB) held every write behind it.
+        scheduleSave()
         logger.info(
             "Graph Re-extract",
             "Re-applied graph for \(documentId) — \(entityIds.count) entity(ies), \(payload.relationships.count) relationship(s)",

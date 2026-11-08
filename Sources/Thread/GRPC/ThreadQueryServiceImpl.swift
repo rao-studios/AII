@@ -400,8 +400,10 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
                 logger: database.baseLogger
             )
             await database.enqueuePut(enriched, request: capturedReq)
-            // Code relations: read after the put, so the code is searchable first (CodeRelationEnrichment).
-            if relatesCode {
+            // Code relations: read after the put, so the code is searchable first (CodeRelationEnrichment), and as
+            // background work, so filing, search and the health check go first.
+            guard relatesCode else { return }
+            Task.detached(priority: .background) {
                 await database.relateCode(enriched, extractor: graphExtractor, embedder: embeddingProvider, request: capturedReq)
             }
         }
