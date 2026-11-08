@@ -143,6 +143,10 @@ public struct AIIHome: Sendable, Hashable, CustomStringConvertible {
     public func aiiLease(for app: AIIApp) -> URL { aiiLease(for: .app(app)) }
     /// A pinned lease (the aii command's, a dev script's): held until released, whatever process wrote it.
     public func aiiPinnedLease(for identity: StackIdentity) -> URL { aiiLeasesDirectory.appendingPathComponent("\(identity.rawValue).pinned.json") }
+    /// Marks of the apps generating on this Mac's GPU right now (AIIBusy): the stack's own background
+    /// model work waits while one is live. Never in the leases folder, whose reader drops what it can't decode.
+    public var aiiBusyDirectory: URL { aiiDirectory.appendingPathComponent("busy", isDirectory: true) }
+    public func aiiBusyMark(for app: AIIApp, pid: Int32) -> URL { aiiBusyDirectory.appendingPathComponent("\(app.rawValue)-\(pid).json") }
     public func aiiPinnedLease(for app: AIIApp) -> URL { aiiPinnedLease(for: .app(app)) }
 
     // An app's own files, beside the index: Craft's code index, projects and evals live here.
