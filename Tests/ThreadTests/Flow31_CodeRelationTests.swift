@@ -39,7 +39,9 @@ final class Flow31_CodeRelationTests: XCTestCase {
     /// only for a type the filer named.
     func test_aReadingAddsWhatEachTypeIsFor_toTheGraphTheFilerGave() async throws {
         let reader = Reader(#"Here: {"goals":[{"type":"Store","goal":"Persist settings  between launches."},{"type":"Ghost","goal":"haunt"},{"type":"Cache","goal":"keep reads fast"}]}"#)
-        let given = item(entities: filed, relationships: [.init(subject: "project:abc", predicate: "declares", object: "module:App")])
+        let given = item(entities: filed, relationships: [.init(subject: "project:abc", predicate: "declares", object: "module:App"),
+                                                          .init(subject: "module:App", predicate: "declares", object: "sym:Store"),
+                                                          .init(subject: "module:App", predicate: "declares", object: "sym:Cache")])
         let reading = await CodeRelationEnrichment.relate(given, extractor: reader, existingGraph: nil, logger: .test)
         let related = try XCTUnwrap(reading)
         XCTAssertEqual(Array(related.entities.prefix(filed.count)).map(\.name), filed.map(\.name), "the filer's entities first")
@@ -51,6 +53,24 @@ final class Flow31_CodeRelationTests: XCTestCase {
         XCTAssertFalse(triples.contains { $0.contains("haunt") }, "a type the filer did not name gets nothing")
         let asked = await reader.asked
         XCTAssertTrue(asked.first?.hasPrefix("Types: Store, Cache") == true, "the types, without their namespace: \(asked)")
+    }
+
+    /// PIN: a filer that says what the file declares has only those types read: a type the file uses from elsewhere (its
+    /// language's String, a framework's base class, even one filed with a type's kind) is never asked about.
+    func test_onlyTheTypesTheFileDeclaresAreRead_whenTheFilerSaysWhatItDeclares() async {
+        let reader = Reader(#"{"goals":[{"type":"String","goal":"represent textual data"}]}"#)
+        let used: [Database.GraphPayload.EntityIn] = filed + [.init(name: "type:String", kind: "type"), .init(name: "type:XCTestCase", kind: "class")]
+        let given = item(entities: used, relationships: [.init(subject: "module:App", predicate: "declares", object: "sym:Store"),
+                                                         .init(subject: "sym:Store", predicate: "inherits", object: "type:XCTestCase")])
+        let reading = await CodeRelationEnrichment.relate(given, extractor: reader, existingGraph: nil, logger: .test)
+        XCTAssertNil(reading, "String is not the file's: its goal is dropped")
+        let asked = await reader.asked
+        XCTAssertEqual(asked.first?.components(separatedBy: "\n").first, "Types: Store")
+        let onlyUses = item(entities: used, relationships: [.init(subject: "project:abc", predicate: "declares", object: "module:App")])
+        let none = await CodeRelationEnrichment.relate(onlyUses, extractor: reader, existingGraph: nil, logger: .test)
+        XCTAssertNil(none, "a file that declares no type is not read")
+        let readings = await reader.asked.count
+        XCTAssertEqual(readings, 1, "and the model is not asked")
     }
 
     /// Nothing to read, no model to ask, or an answer with nothing usable: the item stays as it was filed.

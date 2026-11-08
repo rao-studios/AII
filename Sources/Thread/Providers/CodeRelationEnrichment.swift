@@ -25,6 +25,8 @@ enum CodeRelationEnrichment {
     static let goalKind = "goal"
     static let serves = "serves"
     static let pursues = "pursues"
+    /// What a filer says a file's module or file declares by: the types read are those it names (`types(in:)`).
+    static let declares = "declares"
     /// The entity kinds a filer names a type by: what a goal is read for.
     static let typeKinds: Set<String> = ["struct", "class", "actor", "enum", "protocol", "interface", "trait", "type"]
     static let maxTypes = 12
@@ -63,10 +65,18 @@ enum CodeRelationEnrichment {
         }
     }
 
-    /// The types a filer named, as the model is shown them (no namespace) and as the graph knows them.
+    /// The types the file declares, as the model is shown them (no namespace) and as the graph knows them.
+    ///
+    /// PIN: THE FILE'S OWN TYPES. A filer that says what the file declares (`<module> declares <type>`) is taken at its
+    /// word: a type the file only uses — a standard library's String, a framework's base class — is never read, or every
+    /// project in a language would pursue "represent textual data" and the goals would link everything. A filer that
+    /// sends no `declares` has every type it named read.
     static func types(in graph: Database.GraphPayload) -> [(display: String, entity: String)] {
+        let declared = Set(graph.relationships.filter { $0.predicate.lowercased() == declares }.map(\.object))
         var seen = Set<String>()
-        return graph.entities.filter { typeKinds.contains($0.kind.lowercased()) }.compactMap { entity in
+        return graph.entities.filter {
+            typeKinds.contains($0.kind.lowercased()) && (declared.isEmpty || declared.contains($0.name))
+        }.compactMap { entity in
             let display = entity.name.split(separator: ":", maxSplits: 1).last.map(String.init) ?? entity.name
             return seen.insert(display).inserted ? (display, entity.name) : nil
         }.prefix(maxTypes).map { $0 }
