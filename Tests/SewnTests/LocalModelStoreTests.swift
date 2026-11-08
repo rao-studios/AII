@@ -55,13 +55,20 @@ final class LocalModelStoreRouteTests: XCTestCase {
         }
     }
 
-    func testTheDefaultAndTheModelInUseAreNeverRemoved() async throws {
+    /// Since 2026-11-07 Thread reads with the smallest general model, so the kept models are it and the embedder;
+    /// Sewn's own default is protected while it is the model in use, as any chosen model is.
+    func testTheModelInUseAndWhatThreadRunsAreNeverRemoved() async throws {
         #if canImport(MLXLLM)
+        try await app().test(.router) { client in
+            try await client.execute(uri: "/v1/providers/local/remove", method: .post, body: Self.body(ModelConfig.defaultLocalModel)) { response in
+                XCTAssertEqual(response.status, .conflict, "the default, in use while nothing else is chosen")
+            }
+        }
         let chosen = "mlx-community/Ministral-3-8B-Instruct-2512-4bit"
         ModelConfig.chooseLocalModel(chosen)
         defer { ModelConfig.chooseLocalModel(nil) }
         try await app().test(.router) { client in
-            for model in [ModelConfig.defaultLocalModel, chosen] {
+            for model in [chosen] + AIIModels.kept.sorted() {
                 try await client.execute(uri: "/v1/providers/local/remove", method: .post, body: Self.body(model)) { response in
                     XCTAssertEqual(response.status, .conflict, model)
                 }

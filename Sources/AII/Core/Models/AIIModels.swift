@@ -7,7 +7,8 @@
 //
 //  WHAT: The master list of the base models the Rao ecosystem runs on device —
 //        the one place a base model's id and commit are spelled. Voyage for
-//        embeddings, Mistral for general language, Qwen Coder for code.
+//        embeddings, Granite for the smallest general model (Thread's
+//        extractor), Mistral for general language, Qwen Coder for code.
 //  IN:   Sewn (its chat default, its vision slot, what it never removes, the
 //        catalog row of /v1/providers), Thread (its embedder and its graph
 //        extractor), Ambient (the on-device catalogue), Craft (its presets and
@@ -28,7 +29,7 @@ import Foundation
 public enum AIIModels {
 
     public enum Vendor: String, Codable, Sendable {
-        case voyage, mistral, qwen
+        case voyage, mistral, qwen, ibm
     }
 
     /// What a model is for. A closed set: the roles the stack has, not a list
@@ -36,10 +37,10 @@ public enum AIIModels {
     public enum Role: String, CaseIterable, Codable, Sendable {
         /// The one vector space of the index (every Thread lane, Craft, Veil).
         case embedding
-        /// The smallest general chat model Ambient offers on device.
+        /// The smallest general model on device, and what Thread reads with for
+        /// every app (graph extraction, code relations). Never removed.
         case generalSmall
-        /// The standard general model: Sewn's on-device chat, Thread's graph
-        /// extraction, Craft's worker. Never removed.
+        /// The standard general model: Sewn's on-device chat, Craft's worker.
         case generalStandard
         /// The largest general model Ambient offers on device; Craft's fallback primary.
         case generalLarge
@@ -115,13 +116,18 @@ public enum AIIModels {
         releasedYear: 2026, releasedMonth: 9,
         downloadBytes: 381_637_676, weightsBytes: 370_132_090, minimumMemoryGB: 8)
 
+    /// Granite 4.0 H-Micro, Rao's byte-for-byte mirror of mlx-community/granite-4.0-h-micro-4bit
+    /// @ 0a29e17503da7de371af61a0a532853810637627 (published 2026-11-07 by Craft's mirror-model.py).
+    /// 36 Mamba2 layers and 4 attention layers: a reading's state stays a few tens of megabytes
+    /// however long it runs, so Thread can read beside an app's large model (measured: 1.7 GB of
+    /// weights, six readings at once 274 MB over them through the gate, Flow33).
     public static let generalSmall = Entry(
-        id: "mlx-community/Ministral-3-8B-Instruct-2512-4bit",
-        revision: "182f003f01daa75f9de0f2c4d379722fd0bc1c61",
-        vendor: .mistral, role: .generalSmall, family: "mistral3",
-        displayName: "Ministral 3 8B",
-        releasedYear: 2025, releasedMonth: 12,
-        downloadBytes: 5_630_654_690, weightsBytes: 5_596_684_559, minimumMemoryGB: 24)
+        id: "rao-studios/granite-4.0-h-micro-mlx-4bit",
+        revision: "f867a8b0ba27a4174098c5be5ada890f7e6073b1",
+        vendor: .ibm, role: .generalSmall, family: "granitemoehybrid",
+        displayName: "Granite 4.0 H-Micro",
+        releasedYear: 2025, releasedMonth: 10,
+        downloadBytes: 1_806_637_166, weightsBytes: 1_796_848_117, minimumMemoryGB: 8)
 
     public static let generalStandard = Entry(
         id: "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
@@ -165,8 +171,8 @@ public enum AIIModels {
     /// The general chat models an app offers on device, smallest first.
     public static let general: [Entry] = [generalSmall, generalStandard, generalLarge]
 
-    /// What Thread itself runs: never removed through Sewn.
-    public static let kept: Set<String> = [generalStandard.id, embedding.id]
+    /// What Thread itself runs (its extractor and its embedder): never removed through Sewn.
+    public static let kept: Set<String> = [generalSmall.id, embedding.id]
 
     public static func entry(role: Role) -> Entry {
         all.first { $0.role == role }!

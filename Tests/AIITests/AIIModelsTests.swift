@@ -55,8 +55,11 @@ final class AIIModelsTests: XCTestCase {
         }
     }
 
+    /// Since 2026-11-07 Thread reads with the smallest general model (Granite 4.0 H-Micro, Rao's mirror).
     func testKeptIsWhatThreadRuns() {
-        XCTAssertEqual(AIIModels.kept, [AIIModels.generalStandard.id, AIIModels.embedding.id])
+        XCTAssertEqual(AIIModels.kept, [AIIModels.generalSmall.id, AIIModels.embedding.id])
+        XCTAssertEqual(AIIModels.generalSmall.id, "rao-studios/granite-4.0-h-micro-mlx-4bit")
+        XCTAssertEqual(AIIModels.generalSmall.family, "granitemoehybrid")
         XCTAssertTrue(AIIModels.kept.isSubset(of: Set(AIIModels.all.map(\.id))))
         XCTAssertEqual(AIIModels.general.map(\.role), [.generalSmall, .generalStandard, .generalLarge], "smallest first")
     }
