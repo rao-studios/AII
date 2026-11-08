@@ -29,6 +29,8 @@ actor Database {
         case removeBatch([(documentId: String, ownerId: String)], lane: LaneID)
         case removeAll(ownerId: String, request: DatabaseRequest, CheckedContinuation<Int, Never>)
         case removeGroups([GroupID], ownerId: String, lane: LaneID, CheckedContinuation<Database.GroupRemoval, Never>)
+        /// A filed document's graph, read again: queued, so it lands after the document's put (`relateCode`).
+        case reapplyGraph(DocumentID, Database.GraphPayload, DatabaseRequest)
     }
 
     /// Per-lane counts, recomputed when the stores change (LaneStats.swift).
@@ -155,6 +157,11 @@ extension Database {
         enqueue(.put(items, request))
     }
 
+    /// A filed document's graph replaced, behind every write queued before it.
+    func enqueueReapplyGraph(_ documentId: DocumentID, payload: Database.GraphPayload, request: DatabaseRequest) {
+        enqueue(.reapplyGraph(documentId, payload, request))
+    }
+
     func enqueueRemoveBatch(_ items: [(documentId: String, ownerId: String)], lane: LaneID = .unscoped) {
         enqueue(.removeBatch(items, lane: lane))
     }
@@ -217,6 +224,8 @@ extension Database {
             continuation.resume(returning: count)
         case .removeGroups(let groupIds, let ownerId, let lane, let continuation):
             continuation.resume(returning: await _removeGroups(groupIds, ownerId: ownerId, lane: lane))
+        case .reapplyGraph(let documentId, let payload, let request):
+            await tableMutator.reapplyGraph(documentId: documentId, payload: payload, request: request)
         }
     }
 }

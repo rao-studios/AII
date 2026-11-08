@@ -96,4 +96,25 @@ extension Database {
         )
         return result.graph.entities.count
     }
+
+    /// Code relations, after the put: each code item a filer asked to relate (`relate_code`) is read by the extractor for
+    /// the end goals its types serve (CodeRelationEnrichment), its new relationships are embedded as any filing's are
+    /// (GraphEnrichment), and its graph is re-applied behind the put in the write queue, so it lands on the document as
+    /// filed. A document filed again meanwhile is the newer filing's to relate: re-applying to a document no longer held
+    /// does nothing.
+    func relateCode(_ items: [Database.BatchPutItem], extractor: (any GraphExtracting)?, embedder: any EmbeddingProviding,
+                    request: DatabaseRequest) async {
+        guard let extractor else { return }
+        for item in items where item.mediaType == .code {
+            guard let related = await CodeRelationEnrichment.relate(item, extractor: extractor, existingGraph: graph, logger: baseLogger) else {
+                continue
+            }
+            var reading = item
+            reading.graph = related
+            reading.needsExtraction = false
+            let embedded = await GraphEnrichment.run(items: [reading], extractor: nil, embedder: embedder, existingGraph: graph, logger: baseLogger)
+            guard let payload = embedded.first?.graph else { continue }
+            enqueueReapplyGraph(item.id, payload: payload, request: request)
+        }
+    }
 }

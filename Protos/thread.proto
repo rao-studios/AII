@@ -131,6 +131,13 @@ message ThreadIndexRequest {
   // stream, where Sewn stamps it from the secret that matched; ignored on a
   // direct RPC, where the server derives it from the request's own secret.
   string                lane        = 6;
+  // Code relations, the index-time twin of a search's media_type "code": once each
+  // item deposited with media_type "code" is filed, the node's extractor reads its
+  // cards for the end goal each of its types serves, and adds them to the graph the
+  // item gave — `<type> serves <goal>`, and `<project> pursues <goal>` for an entity
+  // of kind "project" the item named (CodeRelationEnrichment). The item is
+  // searchable before that reading lands. False: filed as it always was.
+  bool                  relate_code = 7;
 }
 
 message ThreadIndexItem {

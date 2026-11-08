@@ -28,6 +28,12 @@ How the graph is built, per document, in this order:
 3. **Otherwise, by media type.** For `text`, keyword placeholders come first. Mistral-Nemo then
    extracts entities and relationships on device, after the index call has answered. For `code`,
    `sym:` identifiers come from the source, with no model. For `image`, nothing is extracted.
+4. **Code relations, when the request sets `relate_code`.** After the put, the extraction model reads
+   each item's types (the entities you named of kind `struct`, `class`, `protocol` and the like) and
+   adds `<type> serves <goal>` and, for each entity of kind `project` you named, `<project> pursues
+   <goal>`. A goal is an entity of kind `goal`, a short phrase; the goals the graph already holds
+   that share the file's words are offered first, so two projects solving the same problem meet at
+   one goal. The item is searchable before this lands, and a restart drops readings still queued.
 
 The extraction policy (`GET`/`PUT /v1/graph/policy`) holds the entity kinds, the prompt, predicate
 aliases, the caps (12 entities, 15 relationships), optional co-mention edges and a hub cap. It is

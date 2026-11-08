@@ -13,6 +13,14 @@ import Logging
 /// Extracts a knowledge-graph payload (entities + relationships) from document text at ingest.
 protocol GraphExtracting: Sendable {
     func extract(from texts: [String], logger: Logger) async throws -> Database.GraphPayload
+    /// One reading under instructions of the caller's own — what code relations ask
+    /// (CodeRelationEnrichment) — answered as the model wrote it. Nil from an extractor
+    /// with no model to ask.
+    func respond(instructions: String, input: String, maxTokens: Int, logger: Logger) async throws -> String?
+}
+
+extension GraphExtracting {
+    func respond(instructions: String, input: String, maxTokens: Int, logger: Logger) async throws -> String? { nil }
 }
 
 /// Fallback extractor: high-frequency keywords as untyped `concept` entities, no relationships.
@@ -169,6 +177,20 @@ actor MistralGraphExtractionProvider: GraphExtracting {
         }
         return try GraphExtractionParser.parse(content, policy: policy)
     }
+
+    func respond(instructions: String, input: String, maxTokens: Int, logger: Logger) async throws -> String? {
+        await acquireExtractionSlot()
+        defer { releaseExtractionSlot() }
+        let response = try await network.request(
+            Requests.Chat.Get(
+                model: model,
+                messages: [.init(role: "system", content: instructions), .init(role: "user", content: String(input.prefix(maxInputChars)))],
+                maxTokens: maxTokens,
+                temperature: 0
+            )
+        )
+        return response.choices.first?.message.content
+    }
 }
 
 #if canImport(MLX)
@@ -257,6 +279,13 @@ actor MLXGraphExtractionProvider: GraphExtracting {
         )
         let response = try await session.respond(to: input)
         return try GraphExtractionParser.parse(response, policy: policy)
+    }
+
+    func respond(instructions: String, input: String, maxTokens: Int, logger: Logger) async throws -> String? {
+        let container = try await loadedModel(logger: logger)
+        let session = ChatSession(container, instructions: instructions,
+                                  generateParameters: GenerateParameters(maxTokens: maxTokens, temperature: 0))
+        return try await session.respond(to: String(input.prefix(maxInputChars)))
     }
 
     private func loadedModel(logger: Logger) async throws -> ModelContainer {

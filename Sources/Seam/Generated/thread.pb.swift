@@ -269,6 +269,14 @@ public nonisolated struct Thread_V1_ThreadIndexRequest: Sendable {
   /// direct RPC, where the server derives it from the request's own secret.
   public var lane: String = String()
 
+  /// Code relations, the index-time twin of a search's media_type "code": once each
+  /// item deposited with media_type "code" is filed, the node's extractor reads its
+  /// cards for the end goal each of its types serves, and adds them to the graph the
+  /// item gave — `<type> serves <goal>`, and `<project> pursues <goal>` for an entity
+  /// of kind "project" the item named (CodeRelationEnrichment). The item is
+  /// searchable before that reading lands. False: filed as it always was.
+  public var relateCode: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1648,7 +1656,7 @@ nonisolated extension Thread_V1_ThreadPartitionResult: SwiftProtobuf.Message, Sw
 
 nonisolated extension Thread_V1_ThreadIndexRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".ThreadIndexRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}owner_id\0\u{3}group_id\0\u{3}group_label\0\u{1}scope\0\u{1}items\0\u{1}lane\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}owner_id\0\u{3}group_id\0\u{3}group_label\0\u{1}scope\0\u{1}items\0\u{1}lane\0\u{3}relate_code\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1662,6 +1670,7 @@ nonisolated extension Thread_V1_ThreadIndexRequest: SwiftProtobuf.Message, Swift
       case 4: try { try decoder.decodeSingularStringField(value: &self.scope) }()
       case 5: try { try decoder.decodeRepeatedMessageField(value: &self.items) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.lane) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.relateCode) }()
       default: break
       }
     }
@@ -1686,6 +1695,9 @@ nonisolated extension Thread_V1_ThreadIndexRequest: SwiftProtobuf.Message, Swift
     if !self.lane.isEmpty {
       try visitor.visitSingularStringField(value: self.lane, fieldNumber: 6)
     }
+    if self.relateCode != false {
+      try visitor.visitSingularBoolField(value: self.relateCode, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1696,6 +1708,7 @@ nonisolated extension Thread_V1_ThreadIndexRequest: SwiftProtobuf.Message, Swift
     if lhs.scope != rhs.scope {return false}
     if lhs.items != rhs.items {return false}
     if lhs.lane != rhs.lane {return false}
+    if lhs.relateCode != rhs.relateCode {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

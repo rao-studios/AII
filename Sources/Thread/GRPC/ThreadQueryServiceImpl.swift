@@ -390,6 +390,7 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
         // enqueues the put — identical shape to the REST ingest path.
         let capturedItems = putItems
         let capturedReq = databaseReq
+        let relatesCode = request.relateCode
         Task.detached(priority: .userInitiated) { [database, graphExtractor, embeddingProvider] in
             let enriched = await GraphEnrichment.run(
                 items: capturedItems,
@@ -399,6 +400,10 @@ final class ThreadQueryServiceImpl: Thread_V1_ThreadQuery.ServiceProtocol, Senda
                 logger: database.baseLogger
             )
             await database.enqueuePut(enriched, request: capturedReq)
+            // Code relations: read after the put, so the code is searchable first (CodeRelationEnrichment).
+            if relatesCode {
+                await database.relateCode(enriched, extractor: graphExtractor, embedder: embeddingProvider, request: capturedReq)
+            }
         }
 
         var response = Thread_V1_ThreadIndexResponse()
