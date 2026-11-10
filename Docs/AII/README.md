@@ -491,7 +491,7 @@ Thread, and registering the name again finds them, because the lane id is derive
 | --- | --- | --- |
 | `embedding` | rao-studios/voyage-4-nano-mlx-8bit | Thread (every lane), Veil's tiles |
 | `generalSmall` | rao-studios/granite-4.0-h-micro-mlx-4bit | Thread's graph extraction and code relations (every app), Ambient's on-device choice |
-| `generalStandard` | mlx-community/Mistral-Nemo-Instruct-2407-4bit | Sewn's default, Craft's worker |
+| `generalStandard` | rao-studios/Mistral-Nemo-Instruct-2407-mlx-4bit | Sewn's default, Craft's worker |
 | `generalLarge` | mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit | Ambient's on-device choice, Craft's fallback |
 | `vision` | rao-studios/Ministral-3-8B-Instruct-2512-mlx-8bit | Sewn's vision slot |
 | `coding` | rao-studios/Qwen3-Coder-Next-REAP-48B-A3B-mlx-4bit | Craft's primary |

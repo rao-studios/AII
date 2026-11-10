@@ -129,9 +129,11 @@ public enum AIIModels {
         releasedYear: 2025, releasedMonth: 10,
         downloadBytes: 1_806_637_166, weightsBytes: 1_796_848_117, minimumMemoryGB: 8)
 
+    /// Rao's byte-identical mirror of mlx-community/Mistral-Nemo-Instruct-2407-4bit
+    /// @ 647ca0751669b21a364c86ccc5df54c4d7e4e91c (published 2026-11-10; plus LICENSE.txt and a card).
     public static let generalStandard = Entry(
-        id: "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
-        revision: "647ca0751669b21a364c86ccc5df54c4d7e4e91c",
+        id: "rao-studios/Mistral-Nemo-Instruct-2407-mlx-4bit",
+        revision: "0f2f97c496d9431db3cc8f70864fc53189b519d4",
         vendor: .mistral, role: .generalStandard, family: "mistral",
         displayName: "Mistral Nemo 12B",
         releasedYear: 2024, releasedMonth: 7,

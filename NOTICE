@@ -55,9 +55,9 @@ Face Hub on first use, and carry their own licences:
   (c) 2024-2025 Alibaba Cloud), Apache License 2.0. The repository carries the
   licence and the upstream NOTICE with Rao Studios' statement of the changes.
 - General models and graph extraction: `mlx-community/Ministral-3-8B-Instruct-2512-4bit`,
-  `mlx-community/Mistral-Nemo-Instruct-2407-4bit` and
-  `mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit`, MLX conversions of
-  Mistral AI's models, Apache License 2.0.
+  `rao-studios/Mistral-Nemo-Instruct-2407-mlx-4bit` (Rao Studios' byte-identical
+  mirror) and `mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit`, MLX
+  conversions of Mistral AI's models, Apache License 2.0.
 - Vision: `rao-studios/Ministral-3-8B-Instruct-2512-mlx-8bit`, Rao Studios' MLX
   conversion of Mistral AI's Ministral 3 8B, Apache License 2.0.
 - Coding: `rao-studios/Qwen3-Coder-Next-REAP-48B-A3B-mlx-4bit`, Rao Studios'
