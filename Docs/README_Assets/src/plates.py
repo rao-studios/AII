@@ -110,7 +110,9 @@ def steps(blocks, top):
 # The header's rhythm, shared by Rao's plates: the mark's ink sits 70 px from the top and the left; every
 # header line's ink starts at the mark's left edge (an italic first glyph overhangs by its own amount, so
 # the page measures it); the title's ink starts 70 px under the mark's; what follows starts HEADER_GAP px
-# under the subtitle's baseline, and the page grows or shrinks to keep its foot.
+# under the subtitle's baseline, and the page grows or shrinks to keep its foot. The mark is rao.nyc's
+# rr-mark.png, 986 × 802 with its shadow, its ink (alpha ≥ 128) at 26,14 to 945,761: drawn 46.2 wide at
+# 68.8, 69.3, its ink is 35 px tall from 70, 70. build.py's heroes draw it 51.9 wide, ink from x 54.5.
 INK, TITLE_INK, HEADER_GAP = 70.5, 174, 54
 HEADER_JS = """<script>
 document.fonts.ready.then(() => {
@@ -156,8 +158,8 @@ def plate(name, height, caption, title, sub, body, tag):
 html, body {{ margin: 0; width: {W}px; height: {height}px; overflow: hidden; }}
 body {{ position: relative; font-family: "Playfair", Georgia, serif; font-style: italic; color: #a29f97; font-variant-numeric: lining-nums;
        background: radial-gradient(ellipse 90% 100% at 22% 20%, #20201c 0%, #191917 45%, #121211 100%); }}
-.mark {{ position: absolute; left: 62.5px; top: 60px; width: 64px; }}
-.caption {{ position: absolute; left: 150px; top: 78px; letter-spacing: .3em; font-size: 15px; color: #8b8a84; }}
+.mark {{ position: absolute; left: 68.8px; top: 69.3px; width: 46.2px; }}
+.caption {{ position: absolute; left: 145.8px; top: 78px; letter-spacing: .3em; font-size: 15px; color: #8b8a84; }}
 .title {{ position: absolute; left: 39.5px; padding-left: 40px; top: 162px; font-size: 104px; line-height: 1; font-weight: 500; letter-spacing: -.005em; padding-right: 30px; padding-bottom: 32px;
          background: linear-gradient(100deg, #8d9097 0%, #c8cad0 35%, #f2f3f6 58%, #b6b9c1 100%);
          -webkit-background-clip: text; background-clip: text; color: transparent; white-space: nowrap; }}
