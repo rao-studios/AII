@@ -249,28 +249,34 @@ extension ThreadRegistry {
         return allowed.contains(groupId)
     }
 
-    // MARK: Shared lanes — reads only
+    // MARK: Shared lanes and public documents — reads only
 
-    /// The documents a caller in `lane` may READ: its own lane's and every shared lane's
-    /// (`AIILanes.shared`, Link). Nil when nothing is cut (unscoped). Writes, removals and
+    /// The documents a caller in `lane` may READ: its own lane's, every shared lane's
+    /// (`AIILanes.shared`, Link), and every document its owner made public (`available`),
+    /// whichever lane filed it. Nil when nothing is cut (unscoped). Writes, removals and
     /// access changes never use this: they stay with `documents(inLane:)`/`isReadable`, so
-    /// no app's clear takes a shared lane's documents.
+    /// no app's clear takes a shared lane's documents or another app's public ones.
+    ///
+    /// PIN: PUBLIC IS PUBLIC. `available` is what Sewn's global scope and leaderboard call
+    /// public; an AII another app connects to answers with what its owner published, and a
+    /// lane never hides it.
     func documents(visibleFrom lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Set<DocumentID>? {
         guard var own = documents(inLane: lane) else { return nil }
         for other in shared where other != lane { own.formUnion(laneDocuments[other] ?? []) }
+        own.formUnion(availableDocumentIds)
         return own
     }
 
-    /// Whether `documentId` may be READ from `lane`: its own, or a shared lane's.
+    /// Whether `documentId` may be READ from `lane`: its own, a shared lane's, or public.
     func isVisible(_ documentId: DocumentID, from lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Bool {
-        if isReadable(documentId, from: lane) { return true }
+        if isReadable(documentId, from: lane) || availableDocumentIds.contains(documentId) { return true }
         guard let owner = documentLanes[documentId] else { return false }
         return shared.contains(owner)
     }
 
-    /// Whether `groupId` may be READ from `lane`: its own, or a shared lane's.
+    /// Whether `groupId` may be READ from `lane`: its own, a shared lane's, or public.
     func isGroupVisible(_ groupId: GroupID, from lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Bool {
-        if isGroupReadable(groupId, from: lane) { return true }
+        if isGroupReadable(groupId, from: lane) || availableGroupIds.contains(groupId) { return true }
         guard let owner = groupLanes[groupId] else { return false }
         return shared.contains(owner)
     }

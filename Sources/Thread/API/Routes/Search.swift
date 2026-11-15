@@ -32,10 +32,18 @@ func registerSearchRoute(
             expand: searchRequest.expand
         )
 
+        let registry = database.registry
+        let hits = result.partitions.enumerated().map { index, partition in
+            let header = database.documentHeader(for: partition.documentId, owner: partition.ownerId, registry: registry)
+            return SearchHit(documentId: partition.documentId, partitionId: partition.id,
+                             score: index < result.scores.count ? result.scores[index] : 0,
+                             mediaType: partition.mediaType.rawValue, name: header.name, groupId: header.groupId)
+        }
         return .init(
             texts: result.context,
             references: result.references,
-            graph: buildGraphBlock(from: result.trace, graph: database.graph)
+            graph: buildGraphBlock(from: result.trace, graph: database.graph),
+            hits: hits
         )
     }
 }

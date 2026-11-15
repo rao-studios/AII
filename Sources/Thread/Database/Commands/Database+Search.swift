@@ -112,6 +112,10 @@ extension Database {
             }
         }
         let partitions = result.partitions
+        // One score per partition, in order; a result that carried fewer scores than partitions pads with 0.
+        let scores = result.data.flatMap { found in
+            found.partitions.indices.map { $0 < found.scores.count ? found.scores[$0] : 0 }
+        }
 
         logger.info(
             "Search",
@@ -126,6 +130,7 @@ extension Database {
             adjustments: result.adjustments,
             references: result.asDocumentReference,
             partitions: partitions,
+            scores: scores,
             trace: result.trace
         )
     }

@@ -56,6 +56,30 @@ func registerLibraryRoute(_ app: some RouterMethods<ThreadRequestContext>, _ dat
         return LibraryResponse(groups: groups)
     }
 
+    // Publish or withdraw: the owner makes a group (and every document in it, now and
+    // filed later) or one document `available` — readable from every lane, as Sewn's
+    // global scope reads public — or `restricted` again. A write: only the lane that filed
+    // it may change it, and the stack identity may not.
+    app.post("/v1/library/access") { request, context async throws -> LibraryAccessResponse in
+        let body = try await request.decode(as: LibraryAccessRequest.self, context: context)
+        guard let access = ThreadRegistry.Access(rawValue: body.access), access != .unknown else {
+            throw HTTPError(.badRequest, message: #"access is "available" or "restricted"."#)
+        }
+        guard (body.groupId == nil) != (body.documentId == nil) else {
+            throw HTTPError(.badRequest, message: "Name a group_id or a document_id, one of them.")
+        }
+        guard let lane = try resolver.scope(identity: context.callerIdentity).writeLane else {
+            throw HTTPError(.forbidden, message: LaneResolver.stackCannotWrite)
+        }
+        let updated: Bool
+        if let groupId = body.groupId {
+            updated = await database.updateGroupAccess(groupId, ownerId: body.ownerId, access: access, lane: lane)
+        } else {
+            updated = await database.updateDocumentAccess(body.documentId ?? "", ownerId: body.ownerId, access: access, lane: lane)
+        }
+        return LibraryAccessResponse(updated: updated, access: access.rawValue)
+    }
+
     // Destructive. An app clears its own lane: its documents and groups go through
     // the normal removal path, other lanes are untouched. `{"all": true}` wipes the
     // whole index — table, graph, registry — and re-stamps it for the running
@@ -84,6 +108,25 @@ func registerLibraryRoute(_ app: some RouterMethods<ThreadRequestContext>, _ dat
                              documents: removed.documents,
                              entities: removed.entities)
     }
+}
+
+private struct LibraryAccessRequest: Codable {
+    let ownerId: String
+    let groupId: String?
+    let documentId: String?
+    let access: String
+    enum CodingKeys: String, CodingKey {
+        case ownerId = "owner_id"
+        case groupId = "group_id"
+        case documentId = "document_id"
+        case access
+    }
+}
+
+struct LibraryAccessResponse: ResponseCodable {
+    /// False when the caller's lane does not own what it named.
+    let updated: Bool
+    let access: String
 }
 
 private struct ClearRequest: Codable {

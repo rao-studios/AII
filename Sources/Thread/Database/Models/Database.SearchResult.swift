@@ -34,6 +34,8 @@ extension Database {
         var adjustments: [SinatraAdjustment]
         var references: [Database.DocumentReference]
         var partitions: [Database.Partition]
+        /// Each partition's score, parallel to `partitions`: the gRPC search's `score`.
+        var scores: [Float]
         var trace: GraphSearchTrace?
 
         init(
@@ -41,12 +43,14 @@ extension Database {
             adjustments: [SinatraAdjustment],
             references: [Database.DocumentReference],
             partitions: [Database.Partition] = [],
+            scores: [Float] = [],
             trace: GraphSearchTrace? = nil
         ) {
             self.context = context
             self.adjustments = adjustments
             self.references = references
             self.partitions = partitions
+            self.scores = scores
             self.trace = trace
         }
     }

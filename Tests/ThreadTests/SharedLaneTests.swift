@@ -168,6 +168,61 @@ final class SharedLaneTests: XCTestCase {
         await stack.database.shutdown()
     }
 
+    /// An owner's public (`available`) group is read from every lane: an AII another app connects to answers with what
+    /// its owner published. Only the filing lane publishes or removes it, and a document filed into it later is public.
+    func testAPublicGroupIsReadFromEveryLane() async throws {
+        ThreadSharedLanes.set([])
+        let stack = await makeStack()
+        try await fill(stack)
+        let ambientLane = try Self.resolver.writeLane(try Self.resolver.scope(for: ambient))
+        let craftLane = try Self.resolver.writeLane(try Self.resolver.scope(for: craft))
+
+        let refused = await stack.database.updateGroupAccess("ambient-reading-x", ownerId: owner, access: .available, lane: craftLane)
+        XCTAssertFalse(refused, "a reader does not publish another lane's group")
+        let craftBefore = try await search(stack, as: craft)
+        XCTAssertEqual(craftBefore, ["craft/lesson/1"])
+
+        let published = await stack.database.updateGroupAccess("ambient-reading-x", ownerId: owner, access: .available, lane: ambientLane)
+        XCTAssertTrue(published)
+        try await index(stack, id: "ambient/reading/2", text: "Ambient read more about tide pools.", group: "ambient-reading-x",
+                        entity: "Tide Pools", as: ambient)
+        let craftAfter = try await search(stack, as: craft)
+        XCTAssertEqual(craftAfter, ["craft/lesson/1", "ambient/reading/1", "ambient/reading/2"])
+        let craftDocuments = try await documents(stack, as: craft)
+        XCTAssertEqual(craftDocuments, ["craft/lesson/1", "ambient/reading/1"])
+        let linkHits = try await search(stack, as: link)
+        XCTAssertFalse(linkHits.contains("craft/lesson/1"), "a restricted group stays its lane's")
+
+        var remove = Thread_V1_ThreadRemoveRequest()
+        remove.ownerID = owner
+        remove.documentIds = ["ambient/reading/1"]
+        _ = try await stack.query.remove(remove, caller: craft)
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(stack.database.table?.keys.contains("ambient/reading/1"), true, "a reader is not a remover")
+
+        _ = await stack.database.updateGroupAccess("ambient-reading-x", ownerId: owner, access: .restricted, lane: ambientLane)
+        let craftWithdrawn = try await search(stack, as: craft)
+        XCTAssertEqual(craftWithdrawn, ["craft/lesson/1"], "withdrawn is the lane's own again")
+        await stack.database.shutdown()
+    }
+
+    /// The HTTP search (`/v1/search`) is what an app that connected an AII by its address asks: from another lane, with
+    /// any owner, global scope reaches what the AII's owner published, and every partition comes back with its score.
+    func testTheTextSearchReachesPublicDocumentsWithAScoreEach() async throws {
+        ThreadSharedLanes.set([])
+        let stack = await makeStack()
+        try await fill(stack)
+        let ambientLane = try Self.resolver.writeLane(try Self.resolver.scope(for: ambient))
+        let craftLane = try Self.resolver.writeLane(try Self.resolver.scope(for: craft))
+        _ = await stack.database.updateGroupAccess("ambient-reading-x", ownerId: owner, access: .available, lane: ambientLane)
+
+        let request = DatabaseRequest(ownerId: "someone-else", scope: .global, topK: 10).scoped(to: craftLane)
+        let result = try await stack.database.search("tide pools", request: request, embeddingModelProvider: MockEmbeddingProvider())
+        XCTAssertEqual(Set(result.partitions.map(\.documentId)), ["ambient/reading/1"], "public, and nothing restricted of another lane")
+        XCTAssertEqual(result.scores.count, result.partitions.count)
+        await stack.database.shutdown()
+    }
+
     func testWithoutSharedLanesEveryLaneIsItsOwn() async throws {
         ThreadSharedLanes.set([])
         let stack = await makeStack()
