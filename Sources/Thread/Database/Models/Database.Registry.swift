@@ -259,8 +259,9 @@ extension ThreadRegistry {
     ///
     /// PIN: PUBLIC IS PUBLIC. `available` is what Sewn's global scope and leaderboard call
     /// public; an AII another app connects to answers with what its owner published, and a
-    /// lane never hides it.
+    /// lane never hides it. A caller with no key reads as `.publicReaders`: public only.
     func documents(visibleFrom lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Set<DocumentID>? {
+        if lane == .publicReaders { return availableDocumentIds }
         guard var own = documents(inLane: lane) else { return nil }
         for other in shared where other != lane { own.formUnion(laneDocuments[other] ?? []) }
         own.formUnion(availableDocumentIds)

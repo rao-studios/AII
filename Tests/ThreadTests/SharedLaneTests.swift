@@ -220,6 +220,51 @@ final class SharedLaneTests: XCTestCase {
         let result = try await stack.database.search("tide pools", request: request, embeddingModelProvider: MockEmbeddingProvider())
         XCTAssertEqual(Set(result.partitions.map(\.documentId)), ["ambient/reading/1"], "public, and nothing restricted of another lane")
         XCTAssertEqual(result.scores.count, result.partitions.count)
+
+        let keyless = DatabaseRequest(ownerId: "anyone", scope: .global, topK: 10).scoped(to: .publicReaders)
+        let open = try await stack.database.search("tide pools", request: keyless, embeddingModelProvider: MockEmbeddingProvider())
+        XCTAssertEqual(Set(open.partitions.map(\.documentId)), ["ambient/reading/1"], "a caller with no key reads what is public")
+        let registry = try XCTUnwrap(stack.database.registry)
+        XCTAssertEqual(registry.documents(visibleFrom: .publicReaders), registry.availableDocumentIds, "public only, no lane's own")
+        XCTAssertNil(LaneScope.lane(.publicReaders).writeLane, "and it writes nothing")
+        await stack.database.shutdown()
+    }
+
+    /// Access is set on the group and every document filed into it inherits it, now and later; one document can still be
+    /// restricted inside a public group: a caller with no key gets the rest, its owner's key gets them all.
+    func testARestrictedDocumentInAPublicGroupIsLeftOutWithoutAKey() async throws {
+        ThreadSharedLanes.set([])
+        let stack = await makeStack()
+        try await fill(stack)
+        let ambientLane = try Self.resolver.writeLane(try Self.resolver.scope(for: ambient))
+        _ = await stack.database.updateGroupAccess("ambient-reading-x", ownerId: owner, access: .available, lane: ambientLane)
+        try await index(stack, id: "ambient/reading/2", text: "Ambient's private notes on tide pools.", group: "ambient-reading-x",
+                        entity: "Tide Pools", as: ambient)
+        try await index(stack, id: "ambient/reading/3", text: "Ambient's open notes on tide pools.", group: "ambient-reading-x",
+                        entity: "Tide Pools", as: ambient)
+        let restricted = await stack.database.updateDocumentAccess("ambient/reading/2", ownerId: owner, access: .restricted, lane: ambientLane)
+        XCTAssertTrue(restricted)
+
+        func found(_ lane: LaneID) async throws -> Set<String> {
+            let request = DatabaseRequest(ownerId: owner, scope: .global, topK: 10).scoped(to: lane)
+            let result = try await stack.database.search("tide pools", request: request, embeddingModelProvider: MockEmbeddingProvider())
+            return Set(result.partitions.map(\.documentId))
+        }
+        let keyless = try await found(.publicReaders)
+        XCTAssertEqual(keyless, ["ambient/reading/1", "ambient/reading/3"], "filed later, inherited; one restricted, left out")
+        let keyed = try await found(ambientLane)
+        XCTAssertEqual(keyed, ["ambient/reading/1", "ambient/reading/2", "ambient/reading/3"], "the owner's key reads them all")
+        await stack.database.shutdown()
+    }
+
+    /// A caller with no key never reads a shared lane (Link): shared is between the stack's apps, not public.
+    func testAPublicReaderDoesNotReadTheSharedLanes() async throws {
+        let stack = await makeStack()
+        try await fill(stack)
+        let linkLane = try Self.resolver.writeLane(try Self.resolver.scope(for: link))
+        let registry = try XCTUnwrap(stack.database.registry)
+        let visible = try XCTUnwrap(registry.documents(visibleFrom: .publicReaders, shared: [linkLane]))
+        XCTAssertTrue(visible.isEmpty, "Link's note is shared between the stack's apps, not public: \(visible)")
         await stack.database.shutdown()
     }
 

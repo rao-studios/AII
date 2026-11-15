@@ -17,7 +17,7 @@ func registerSearchRoute(
 ) {
     app.post("/v1/search") { request, context async throws -> SearchResponse in
         let searchRequest = try await request.decode(as: SearchRequest.self, context: context)
-        let lane = try resolver.scope(identity: context.callerIdentity).filter ?? .unscoped
+        let lane = try resolver.scope(context).filter ?? .unscoped
         if await database.vectorRefusal() != nil {
             return .init(texts: [], references: [], graph: nil)
         }
@@ -42,7 +42,8 @@ func registerSearchRoute(
         return .init(
             texts: result.context,
             references: result.references,
-            graph: buildGraphBlock(from: result.trace, graph: database.graph),
+            // A public reader is not shown the graph: its entities come from every document, published or not.
+            graph: context.publicReader ? nil : buildGraphBlock(from: result.trace, graph: database.graph),
             hits: hits
         )
     }

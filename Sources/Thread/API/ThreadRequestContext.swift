@@ -13,6 +13,8 @@ import Hummingbird
 /// admitted, so routes can cut their work to that identity's lane.
 protocol StackCallerContext: RequestContext {
     var callerIdentity: StackIdentity? { get set }
+    /// The caller presented no key and asked a read: it sees public documents only.
+    var publicReader: Bool { get set }
 }
 
 /// Custom request context for Thread.
@@ -26,6 +28,7 @@ protocol StackCallerContext: RequestContext {
 struct ThreadRequestContext: StackCallerContext {
     var coreContext: CoreRequestContextStorage
     var callerIdentity: StackIdentity?
+    var publicReader = false
 
     init(source: ApplicationRequestContextSource) {
         self.coreContext = .init(source: source)

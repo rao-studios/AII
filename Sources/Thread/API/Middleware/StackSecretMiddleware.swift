@@ -11,7 +11,10 @@
 //  IN:   StackMode.thread(environment:), decided once at start. Every identity's
 //        secret is accepted, and the one that matched is recorded on the context
 //        (`callerIdentity`) so each route cuts its work to that identity's lane.
-//  OUT:  401 without a secret; 421 for a Host that isn't loopback
+//  OUT:  401 without a secret; 421 for a Host that isn't loopback. A read with no
+//        key at all (`publicReads`) passes as a public reader: it sees only what owners
+//        made public (`available`) and writes nothing, from any Host — no secret is
+//        involved, so there is nothing for a rebinding page to learn.
 //  PIN:  Keeps web pages out. A page can't send a custom header cross-site
 //        without a CORS preflight, and local mode answers none; a
 //        DNS-rebinding page arrives under its own Host and never learns the
@@ -34,12 +37,22 @@ extension HTTPField.Name {
 struct StackSecretMiddleware<Context: StackCallerContext>: RouterMiddleware {
     let mode: StackMode
 
+    /// The reads a caller with no key may ask, of public documents only. Search alone: a library
+    /// listing names every document of a group, restricted ones too.
+    static var publicReads: Set<String> { ["/v1/search"] }
+
     func handle(
         _ request: Request,
         context: Context,
         next: (Request, Context) async throws -> Response
     ) async throws -> Response {
         if request.uri.path == "/health" {
+            return try await next(request, context)
+        }
+        if mode.keyring != nil, request.headers[.ambientSecret] == nil, request.head.method == .post,
+           Self.publicReads.contains(request.uri.path) {
+            var context = context
+            context.publicReader = true
             return try await next(request, context)
         }
         switch mode.admit(authority: request.head.authority, presented: request.headers[.ambientSecret]) {

@@ -161,6 +161,34 @@ final class StackSecretTests: XCTestCase {
         }
     }
 
+    /// A read with no key at all passes as a public reader (its branch never asks the Host: no secret is involved); a
+    /// write, a wrong key, or a read the list does not name does not.
+    func testAReadWithNoKeyIsAPublicReaderAndNothingElseIs() async throws {
+        let router = Router(context: ThreadRequestContext.self)
+        router.middlewares.add(StackSecretMiddleware<ThreadRequestContext>(mode: oneApp("s")))
+        for path in ["/v1/search", "/v1/library", "/v1/library/access", "/v1/clear"] {
+            router.post(RouterPath(path)) { _, context in context.publicReader ? "public" : "keyed" }
+        }
+        router.get("/v1/stats") { _, _ in "stats" }
+        let rows: [(label: String, path: String, method: HTTPRequest.Method, headers: HTTPFields, status: HTTPResponse.Status, body: String?)] = [
+            ("a search with no key", "/v1/search", .post, [:], .ok, "public"),
+            ("a library listing with no key", "/v1/library", .post, [:], .unauthorized, nil),
+            ("a search with the key", "/v1/search", .post, [.ambientSecret: "s"], .ok, "keyed"),
+            ("a search with a wrong key", "/v1/search", .post, [.ambientSecret: "wrong"], .unauthorized, nil),
+            ("publishing with no key", "/v1/library/access", .post, [:], .unauthorized, nil),
+            ("clearing with no key", "/v1/clear", .post, [:], .unauthorized, nil),
+            ("stats with no key", "/v1/stats", .get, [:], .unauthorized, nil),
+        ]
+        try await Application(router: router).test(.router) { client in
+            for row in rows {
+                try await client.execute(uri: row.path, method: row.method, headers: row.headers) { response in
+                    XCTAssertEqual(response.status, row.status, row.label)
+                    if let body = row.body { XCTAssertEqual(String(buffer: response.body), body, row.label) }
+                }
+            }
+        }
+    }
+
     func testWithTheSecretTheRouteAnswers() async throws {
         try await app(mode: oneApp("s")).test(.router) { client in
             try await client.execute(
