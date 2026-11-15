@@ -27,9 +27,10 @@ import GRPCCore
 import Seam
 
 extension LaneID {
-    /// A caller that presented no key: it reads what owners made public (`available`) and
-    /// nothing else, and writes nothing. No app's lane is this (theirs are uuids).
-    static let publicReaders = LaneID(rawValue: "public")
+    /// The public lane: every group and document its owner made `available`, whichever
+    /// lane filed it. Every caller reads it; a caller with no key reads it alone and
+    /// writes nothing. No app's lane is this (theirs are uuids).
+    static let publicAccess = LaneID(rawValue: "public")
 }
 
 /// What a caller may read and write.
@@ -41,7 +42,7 @@ enum LaneScope: Equatable, Sendable {
 
     /// The lane a write files under, or nil when this scope may not write.
     var writeLane: LaneID? {
-        if case .lane(let id) = self, id != .publicReaders { return id }
+        if case .lane(let id) = self, id != .publicAccess { return id }
         return nil
     }
 
@@ -101,7 +102,7 @@ struct LaneResolver: Sendable {
 
     /// The scope of an HTTP caller: public only when it presented no key, else its identity's.
     func scope(_ context: some StackCallerContext) throws -> LaneScope {
-        if context.publicReader, isMultiApp { return .lane(.publicReaders) }
+        if context.publicReader, isMultiApp { return .lane(.publicAccess) }
         return try scope(identity: context.callerIdentity)
     }
 

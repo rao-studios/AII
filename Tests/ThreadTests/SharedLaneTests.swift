@@ -221,12 +221,12 @@ final class SharedLaneTests: XCTestCase {
         XCTAssertEqual(Set(result.partitions.map(\.documentId)), ["ambient/reading/1"], "public, and nothing restricted of another lane")
         XCTAssertEqual(result.scores.count, result.partitions.count)
 
-        let keyless = DatabaseRequest(ownerId: "anyone", scope: .global, topK: 10).scoped(to: .publicReaders)
+        let keyless = DatabaseRequest(ownerId: "anyone", scope: .global, topK: 10).scoped(to: .publicAccess)
         let open = try await stack.database.search("tide pools", request: keyless, embeddingModelProvider: MockEmbeddingProvider())
         XCTAssertEqual(Set(open.partitions.map(\.documentId)), ["ambient/reading/1"], "a caller with no key reads what is public")
         let registry = try XCTUnwrap(stack.database.registry)
-        XCTAssertEqual(registry.documents(visibleFrom: .publicReaders), registry.availableDocumentIds, "public only, no lane's own")
-        XCTAssertNil(LaneScope.lane(.publicReaders).writeLane, "and it writes nothing")
+        XCTAssertEqual(registry.documents(visibleFrom: .publicAccess), registry.availableDocumentIds, "public only, no lane's own")
+        XCTAssertNil(LaneScope.lane(.publicAccess).writeLane, "and it writes nothing")
         await stack.database.shutdown()
     }
 
@@ -250,7 +250,7 @@ final class SharedLaneTests: XCTestCase {
             let result = try await stack.database.search("tide pools", request: request, embeddingModelProvider: MockEmbeddingProvider())
             return Set(result.partitions.map(\.documentId))
         }
-        let keyless = try await found(.publicReaders)
+        let keyless = try await found(.publicAccess)
         XCTAssertEqual(keyless, ["ambient/reading/1", "ambient/reading/3"], "filed later, inherited; one restricted, left out")
         let keyed = try await found(ambientLane)
         XCTAssertEqual(keyed, ["ambient/reading/1", "ambient/reading/2", "ambient/reading/3"], "the owner's key reads them all")
@@ -263,7 +263,7 @@ final class SharedLaneTests: XCTestCase {
         try await fill(stack)
         let linkLane = try Self.resolver.writeLane(try Self.resolver.scope(for: link))
         let registry = try XCTUnwrap(stack.database.registry)
-        let visible = try XCTUnwrap(registry.documents(visibleFrom: .publicReaders, shared: [linkLane]))
+        let visible = try XCTUnwrap(registry.documents(visibleFrom: .publicAccess, shared: [linkLane]))
         XCTAssertTrue(visible.isEmpty, "Link's note is shared between the stack's apps, not public: \(visible)")
         await stack.database.shutdown()
     }

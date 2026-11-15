@@ -249,37 +249,48 @@ extension ThreadRegistry {
         return allowed.contains(groupId)
     }
 
-    // MARK: Shared lanes and public documents — reads only
+    // MARK: Reading — a caller's own lane, the shared lanes, the public lane
 
-    /// The documents a caller in `lane` may READ: its own lane's, every shared lane's
-    /// (`AIILanes.shared`, Link), and every document its owner made public (`available`),
-    /// whichever lane filed it. Nil when nothing is cut (unscoped). Writes, removals and
-    /// access changes never use this: they stay with `documents(inLane:)`/`isReadable`, so
-    /// no app's clear takes a shared lane's documents or another app's public ones.
+    /// The lanes a caller in `lane` reads: its own, every shared lane (`AIILanes.shared`,
+    /// Link) and the public lane; a caller with no key reads the public lane alone. Nil
+    /// when nothing is cut (unscoped). Reads only: writes, removals and access changes
+    /// stay with the filing lane (`admits`, `documents(inLane:)`), so no app's clear takes
+    /// a shared lane's documents or another app's public ones.
     ///
-    /// PIN: PUBLIC IS PUBLIC. `available` is what Sewn's global scope and leaderboard call
-    /// public; an AII another app connects to answers with what its owner published, and a
-    /// lane never hides it. A caller with no key reads as `.publicReaders`: public only.
+    /// PIN: PUBLIC IS A LANE. A group or document its owner made `available` is in the
+    /// public lane besides the lane that filed it, and every caller reads the public lane:
+    /// an AII another app connects to answers with what its owner published, keyed or not.
+    func lanesRead(by lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Set<LaneID>? {
+        if lane == .publicAccess { return [.publicAccess] }
+        if lane.isUnscoped { return nil }
+        return Set([lane, .publicAccess]).union(shared)
+    }
+
+    /// A lane's documents: those filed in it; the public lane's are every `available` one.
+    func members(of lane: LaneID) -> Set<DocumentID> {
+        lane == .publicAccess ? availableDocumentIds : laneDocuments[lane] ?? []
+    }
+
+    /// A lane's groups: those created in it; the public lane's are every `available` one.
+    func groupMembers(of lane: LaneID) -> Set<GroupID> {
+        lane == .publicAccess ? availableGroupIds : laneGroups[lane] ?? []
+    }
+
+    /// The documents a caller in `lane` may READ: every lane it reads, together.
     func documents(visibleFrom lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Set<DocumentID>? {
-        if lane == .publicReaders { return availableDocumentIds }
-        guard var own = documents(inLane: lane) else { return nil }
-        for other in shared where other != lane { own.formUnion(laneDocuments[other] ?? []) }
-        own.formUnion(availableDocumentIds)
-        return own
+        lanesRead(by: lane, shared: shared).map { $0.reduce(into: Set<DocumentID>()) { $0.formUnion(members(of: $1)) } }
     }
 
-    /// Whether `documentId` may be READ from `lane`: its own, a shared lane's, or public.
+    /// Whether `documentId` may be READ from `lane`: it is in a lane the caller reads.
     func isVisible(_ documentId: DocumentID, from lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Bool {
-        if isReadable(documentId, from: lane) || availableDocumentIds.contains(documentId) { return true }
-        guard let owner = documentLanes[documentId] else { return false }
-        return shared.contains(owner)
+        guard let lanes = lanesRead(by: lane, shared: shared) else { return true }
+        return lanes.contains { members(of: $0).contains(documentId) }
     }
 
-    /// Whether `groupId` may be READ from `lane`: its own, a shared lane's, or public.
+    /// Whether `groupId` may be READ from `lane`: it is in a lane the caller reads.
     func isGroupVisible(_ groupId: GroupID, from lane: LaneID, shared: Set<LaneID> = ThreadSharedLanes.ids) -> Bool {
-        if isGroupReadable(groupId, from: lane) || availableGroupIds.contains(groupId) { return true }
-        guard let owner = groupLanes[groupId] else { return false }
-        return shared.contains(owner)
+        guard let lanes = lanesRead(by: lane, shared: shared) else { return true }
+        return lanes.contains { groupMembers(of: $0).contains(groupId) }
     }
 
     /// The lanes, other than `lane`, that `documentIds` belong to. Empty means every
