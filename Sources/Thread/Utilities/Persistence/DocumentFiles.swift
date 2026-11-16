@@ -86,13 +86,17 @@ enum DocumentFiles {
     /// entries costs seconds to look up on exFAT, so each is asked once per process.
     private static let knownAbsent = LockedValue<Set<String>>([])
 
+    /// Shard folders this process made or found, so a copy asks the disk for each once.
+    private static let madeFolders = LockedValue<Set<String>>([])
+
     /// Copies `key` (a `documentKey` or `partsKey`) from `documents-flat/` under `root` into its
     /// shard, reading the flat file by its name only. Call it after the shard missed: the flat
     /// folder is asked only for files the shards do not hold.
     static func adopt(_ key: String, root: URL, logger: Logger) -> Adoption {
         let fm = FileManager.default
         let flat = root.appendingPathComponent(flatFolder, isDirectory: true)
-        guard fm.fileExists(atPath: flat.path(percentEncoded: false)) else { return .absent }
+        // No check that the flat folder is there: a read of a file in one that is not answers
+        // "no such file" as cheaply, and each extra call is a round trip through the disk's driver.
         // "documents/<shard>/<relative>" → "<relative>", the file's path in the flat folder.
         let relative = key.split(separator: "/", maxSplits: 2).dropFirst(2).first.map(String.init) ?? key
         let source = flat.appendingPathComponent(relative, isDirectory: false)
@@ -110,7 +114,12 @@ enum DocumentFiles {
         }
         let destination = root.appendingPathComponent(key, isDirectory: false)
         do {
-            try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let parent = destination.deletingLastPathComponent()
+            let parentPath = parent.path(percentEncoded: false)
+            if !madeFolders.withLock({ $0.contains(parentPath) }) {
+                try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+                madeFolders.withLock { _ = $0.insert(parentPath) }
+            }
             // PIN: A PLAIN WRITE, NOT AN ATOMIC ONE. An atomic write's fsync and rename cost
             // ~1.2 s a file on exFAT through FSKit against ~80 ms plain; a copy a stop cuts short
             // fails to decode, so the next start misses it in its shard and copies it again.
