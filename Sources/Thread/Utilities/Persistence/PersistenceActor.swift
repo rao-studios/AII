@@ -31,6 +31,12 @@ actor PersistenceActor {
         persistence.save(state: value)
     }
 
+    /// Runs `body` on this actor, after every earlier read and write of the file and before
+    /// any later one: `ThreadCache` reads its snapshot and writes it here as one step.
+    func run<R: Sendable>(_ body: @Sendable () -> R) -> R {
+        body()
+    }
+
     /// Serialized read. Waits for any in-flight save to complete before reading,
     /// so the caller always sees the latest committed state.
     func restore<T: Codable>() -> T? {

@@ -14,8 +14,8 @@ import Foundation
 /// Both stores mutate together on every `put`/`remove` (a document's partitions and the
 /// entities it contributes are one logical unit), so a single actor owns both — no
 /// cross-store coordination is possible to get wrong. Each is persisted to its own plist
-/// (`table-<nodeId>`, `graph-<nodeId>`) with a shared 1-second debounce; removes and
-/// shutdown save immediately.
+/// (`table-<nodeId>`, `graph-<nodeId>`) a second after a burst of puts and then no more often than
+/// `ThreadCache` rests between writes; removes and shutdown save immediately.
 actor TableMutator {
     private let nodeId: UUID
     private let cache:      ThreadCache<PartitionTable>
@@ -120,7 +120,7 @@ actor TableMutator {
         cache.update(table)
         graphCache.update(graphStore)
         bump()
-        await saveBoth(table, graphStore)
+        await saveBoth()
     }
 
     func removeAll(documentIds: [DocumentID], request: DatabaseRequest) async {
@@ -137,7 +137,7 @@ actor TableMutator {
         cache.update(table)
         graphCache.update(graphStore)
         bump()
-        await saveBoth(table, graphStore)
+        await saveBoth()
         logger.info(
             "Remove All",
             "Purged \(documentIds.count) document(s) from partition table + graph",
@@ -204,7 +204,7 @@ actor TableMutator {
         cache.update(table)
         graphCache.update(graphStore)
         bump()
-        await saveBoth(table, graphStore)
+        await saveBoth()
         return result.survivingId
     }
 
@@ -242,7 +242,7 @@ actor TableMutator {
         dirty = false
         flushTask?.cancel()
         flushTask = nil
-        await cache.saveNow(table)
+        await cache.saveNow()
     }
 
     /// Wipes this node's partition table and graph and persists the empty
@@ -257,7 +257,7 @@ actor TableMutator {
         cache.update(table)
         graphCache.update(graphStore)
         bump()
-        await saveBoth(table, graphStore)
+        await saveBoth()
     }
 
     // MARK: - Graceful shutdown
@@ -266,8 +266,8 @@ actor TableMutator {
         flushTask?.cancel()
         flushTask = nil
         dirty = false
-        if let table = cache.snapshot { await cache.saveNow(table) }
-        if let graphStore = graphCache.snapshot { await graphCache.saveNow(graphStore) }
+        await cache.saveNow()
+        await graphCache.saveNow()
     }
 
     // MARK: - Private
@@ -286,9 +286,9 @@ actor TableMutator {
                         logger: logger.base).save(state: metadata)
     }
 
-    private func saveBoth(_ table: PartitionTable, _ graphStore: GraphStore) async {
-        await cache.saveNow(table)
-        await graphCache.saveNow(graphStore)
+    private func saveBoth() async {
+        await cache.saveNow()
+        await graphCache.saveNow()
     }
 
     private func scheduleSave() {
@@ -304,7 +304,7 @@ actor TableMutator {
         flushTask = nil
         guard dirty else { return }
         dirty = false
-        if let table = cache.snapshot { cache.saveAsync(table) }
-        if let graphStore = graphCache.snapshot { graphCache.saveAsync(graphStore) }
+        cache.saveLatest()
+        graphCache.saveLatest()
     }
 }

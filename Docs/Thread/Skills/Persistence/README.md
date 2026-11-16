@@ -1,6 +1,6 @@
 # Persistence
 
-Thread persists all state as binary property-list snapshots under its data directory (`~/Documents/thread-db` by default; see Data Directory). There is no WAL and no memory-mapped store — durability is debounced full-file saves with startup reconciliation sweeps.
+Thread persists all state as binary property-list snapshots under its data directory (`~/Documents/thread-db` by default; see Data Directory). There is no WAL and no memory-mapped store — durability is debounced, rate-limited full-file saves with startup reconciliation sweeps.
 
 ---
 
@@ -21,20 +21,21 @@ Thread persists all state as binary property-list snapshots under its data direc
 
 ## Durability Model
 
-- **Hot path (put)** — `TableMutator` and `RegistryMutator` update in-memory caches immediately and schedule a **1-second debounced** full-file save. The table and graph share one debounce so they flush together.
+- **Hot path (put)** — `TableMutator` and `RegistryMutator` update in-memory caches immediately and ask for a full-file save a second after a burst; the table and graph ask together. `ThreadCache` keeps one background write per file in flight: it writes the snapshot as it is when the write starts (never an older value), skips a value already on disk, folds the asks made meanwhile into one more write, and then rests nine times as long as the write took. A 660 MB table on an external drive at 28 MB/s (24 s a write) is written about every 4 minutes instead of queueing a copy of itself behind every write; a small one on an internal disk still lands within a second or two.
 - **Cold path (remove, access update, group rename, shutdown)** — saved immediately (`saveNow`).
 - All disk I/O routes through a per-cache `PersistenceActor` so concurrent saves never race on the same file.
-- **Nothing is migrated, but one layout move.** A file that is absent or no longer decodes reads as absent, and the node starts it fresh. The exception is a flat `documents/` folder from before the shards: at start-up, before the registry loads, it is renamed `documents-flat/` and its files move into a fresh, sharded `documents/` (an emptied exFAT folder keeps its size). A move that stops resumes at the next start, and while files wait there the registry drops no document it cannot find.
+- **Nothing is migrated, but one layout step.** A file that is absent or no longer decodes reads as absent, and the node starts it fresh. The exception is a flat `documents/` folder from before the shards: at start-up it is renamed `documents-flat/` and a fresh `documents/` is started, two operations. Its files are never listed, moved or deleted: on exFAT through macOS's FSKit driver a folder of ~230k entries takes over ten minutes to list and ~10 s per change, while a file in it opens by name in milliseconds. A registered document missed in its shard is copied in by name at start-up (eight at a time, ~30 min once for 59k documents on an external drive), and a parts file the first time a search needs it. Only an id found in neither place is dropped. Once every node on the data directory has started, `documents-flat/` holds only copies and stale files and can be deleted whole.
+- **Abandoned saves go.** A process stopped mid-write leaves its atomic save's whole temporary copy (`<name>.sb-<random>`) at the root; `FilePersistence.configure` removes those untouched for ten minutes.
 
 ---
 
 ## Startup Reconciliation
 
-`Database.initializeTable()` closes the small crash window the debounce leaves open:
+`Database.initializeTable()` closes the crash window between saves (up to a few minutes for a large table on a slow disk):
 
 1. Restore `table-<nodeId>` and `graph-<nodeId>`.
 2. **Sweep 1** — table documents absent from the registry are removed from the table and detached from the graph.
-3. **Sweep 2** — registry documents with no table index (crash inside the debounce window) are dropped from the registry, so re-ingest is not skipped by the dedup check. Their files stay: `documents/` is shared by co-located nodes, and re-ingest rewrites them.
+3. **Sweep 2** — registry documents with no table index (crash between a registry save and the table's) are dropped from the registry, so re-ingest is not skipped by the dedup check. Their files stay: `documents/` is shared by co-located nodes, and re-ingest rewrites them.
 
 ---
 

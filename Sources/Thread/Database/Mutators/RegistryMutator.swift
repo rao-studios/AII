@@ -78,11 +78,11 @@ actor RegistryMutator {
     /// Persists the complete registry to disk now. Cold-path mutations (remove, access
     /// update, group rename) call this so their durability does not wait on the debounce.
     private func persistNow() {
-        guard let registry = cache.snapshot else { return }
+        guard cache.snapshot != nil else { return }
         registryDirty = false
         flushTask?.cancel()
         flushTask     = nil
-        Task { await self.cache.saveNow(registry) }
+        Task { await self.cache.saveNow() }
     }
 
     /// Wipes this node's registry and persists the empty state immediately.
@@ -92,13 +92,12 @@ actor RegistryMutator {
         registryDirty = false
         let empty = ThreadRegistry()
         commit(empty)
-        await cache.saveNow(empty)
+        await cache.saveNow()
     }
 
     /// Durably flushes the registry to disk. Call from `Database.shutdown()`.
     func flushForShutdown() async {
-        guard let registry = cache.snapshot else { return }
-        await cache.saveNow(registry)
+        await cache.saveNow()
         registryDirty = false
         flushTask?.cancel()
         flushTask     = nil
@@ -118,11 +117,11 @@ actor RegistryMutator {
     }
 
     private func flushIfDirty() {
-        guard registryDirty, let registry = cache.snapshot else {
+        guard registryDirty else {
             flushTask = nil
             return
         }
-        cache.saveAsync(registry)
+        cache.saveLatest()
         registryDirty = false
         flushTask = nil
     }

@@ -488,13 +488,13 @@ final class Flow5_BatchIndexingTests: XCTestCase {
         registry.documentOwners["immediate"] = [.init(id: "fast-check")]
 
         cache.update(registry)
-        cache.saveAsync(registry)
+        cache.saveLatest()
 
         XCTAssertNotNil(cache.snapshot?.documentOwners["immediate"],
             "snapshot must reflect update() synchronously, before the async disk write completes")
     }
 
-    func testThreadCacheSaveAsyncThenLoadOnFreshCacheReturnsPersistedValue() async throws {
+    func testThreadCacheSaveLatestThenLoadOnFreshCacheReturnsPersistedValue() async throws {
         let key = "sc-save-async-\(UUID().uuidString)"
         let writer = ThreadCache<ThreadRegistry>(persistence: tempPersistence(key: key))
         writer.seed(.init())
@@ -502,7 +502,7 @@ final class Flow5_BatchIndexingTests: XCTestCase {
         var registry = ThreadRegistry()
         registry.documentOwners["persisted"] = [.init(id: "async-owner")]
         writer.update(registry)
-        writer.saveAsync(registry)
+        writer.saveLatest()
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
@@ -510,7 +510,7 @@ final class Flow5_BatchIndexingTests: XCTestCase {
         let loaded = await reader.load { ThreadRegistry() }
 
         XCTAssertNotNil(loaded.documentOwners["persisted"],
-            "saveAsync must eventually commit to disk; a fresh cache must load the persisted value")
+            "saveLatest must eventually commit to disk; a fresh cache must load the persisted value")
     }
 
     func testThreadCacheLoadPopulatesSnapshotForSubsequentReads() async {

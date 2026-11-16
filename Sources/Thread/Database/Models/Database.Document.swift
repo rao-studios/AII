@@ -78,8 +78,12 @@ extension Database {
 
     /// Load all partition metadata records for a document. Returns nil when the file
     /// doesn't exist (fresh install before the first write).
+    /// A parts file missed in its shard is copied in from a flat folder set aside, once.
     nonisolated func partitionDatas(for documentId: DocumentID) -> [PartitionData]? {
-        partitionStore(for: documentId).restore()
+        if let parts: [PartitionData] = partitionStore(for: documentId).restore() { return parts }
+        let key = DocumentFiles.partsKey(documentId)
+        guard DocumentFiles.adopt(key, root: FilePersistence.getDefaultURL(), logger: logger.base) == .copied else { return nil }
+        return partitionStore(for: documentId).restore()
     }
 
     /// Find a single partition metadata record by ID. Used as the `PartitionDataLoader`

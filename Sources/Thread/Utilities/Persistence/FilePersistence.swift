@@ -55,7 +55,24 @@ final class FilePersistence : AnyPersistence, @unchecked Sendable {
         }
         let root = getDefaultURL()
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        removeAbandonedSaves(under: root)
         return root
+    }
+
+    /// Removes atomic saves that never renamed into place at the top of `root`: a process
+    /// stopped while writing the table, graph or registry leaves its whole temporary copy
+    /// (`<name>.sb-<random>`, ~660 MB for a large table). Only those untouched for ten minutes,
+    /// so a co-located node's write in progress is left alone.
+    static func removeAbandonedSaves(under root: URL, olderThan age: TimeInterval = 600) {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: root.path(percentEncoded: false)) else { return }
+        let cutoff = Date().addingTimeInterval(-age)
+        for name in names where name.contains(".sb-") && !name.hasPrefix("._") {
+            let url = root.appendingPathComponent(name, isDirectory: false)
+            guard let modified = (try? fm.attributesOfItem(atPath: url.path(percentEncoded: false)))?[.modificationDate] as? Date,
+                  modified < cutoff else { continue }
+            try? fm.removeItem(at: url)
+        }
     }
 
     /// The data root: the configured override, else `~/Documents/thread-db`.
@@ -70,9 +87,14 @@ final class FilePersistence : AnyPersistence, @unchecked Sendable {
     /// existence check misses and every create fails silently — nothing persists.
     func save<State>(state: State,
                      logger: Logger? = nil) where State : Codable {
-        
+        write(state: state)
+    }
+
+    /// `save`, answering whether the file now holds `state`.
+    @discardableResult
+    func write<State>(state: State) -> Bool where State : Codable {
         let encoder = PropertyListEncoder()
-        
+
         do {
             let data = try encoder.encode(state)
             
@@ -86,24 +108,27 @@ final class FilePersistence : AnyPersistence, @unchecked Sendable {
                 
                 // self.logger.info("Creating file at: \(self.url.path())")
                 
-                _ = FileManager
+                guard FileManager
                     .default
                     .createFile(
                         atPath: self.url.path(percentEncoded: false),
                         contents: data
-                    )
+                    ) else {
+                    self.logger.error("\(key): could not create the file")
+                    return false
+                }
             } else {
                 // self.logger.info("Writing data to \(self.url)")
                 try data.write(to: self.url, options: .atomic)
             }
-            
-            // self.logger.info("Wrote chunk to: \(self.url.absoluteString)")
+            return true
         }
         catch let error {
             self.logger
                 .error(
                     .init(stringLiteral: error.localizedDescription)
                 )
+            return false
         }
     }
     
