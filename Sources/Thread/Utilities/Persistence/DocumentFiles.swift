@@ -111,7 +111,10 @@ enum DocumentFiles {
         let destination = root.appendingPathComponent(key, isDirectory: false)
         do {
             try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: destination, options: .atomic)
+            // PIN: A PLAIN WRITE, NOT AN ATOMIC ONE. An atomic write's fsync and rename cost
+            // ~1.2 s a file on exFAT through FSKit against ~80 ms plain; a copy a stop cuts short
+            // fails to decode, so the next start misses it in its shard and copies it again.
+            try data.write(to: destination)
             return .copied
         } catch {
             logger.error("documents: could not copy \(relative) into its shard: \(error.localizedDescription)")
