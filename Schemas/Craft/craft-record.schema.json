@@ -76,6 +76,10 @@
         },
         "check" : {
           "properties" : {
+            "command" : {
+              "description" : "the command that ran, as the plan wrote it",
+              "type" : "string"
+            },
             "directory" : {
               "type" : "string"
             },
@@ -111,7 +115,6 @@
           "enum" : [
             "file",
             "symbol",
-            "stack",
             "check"
           ],
           "type" : "string"
@@ -136,27 +139,6 @@
             "context"
           ],
           "type" : "string"
-        },
-        "stack" : {
-          "properties" : {
-            "label" : {
-              "type" : "string"
-            },
-            "major" : {
-              "type" : "integer"
-            },
-            "name" : {
-              "type" : "string"
-            },
-            "version" : {
-              "type" : "string"
-            }
-          },
-          "required" : [
-            "name",
-            "label"
-          ],
-          "type" : "object"
         },
         "symbol" : {
           "properties" : {
@@ -236,7 +218,6 @@
             "grade" : {
               "enum" : [
                 "fresh",
-                "shifted",
                 "drifted",
                 "contradicted"
               ],
@@ -272,6 +253,76 @@
       },
       "required" : [
         "text"
+      ],
+      "type" : "object"
+    },
+    "learned" : {
+      "properties" : {
+        "cause" : {
+          "description" : "the workflow agent's own words: the report's cause: line",
+          "type" : "string"
+        },
+        "confirmed" : {
+          "description" : "workflows that confirmed with it",
+          "type" : "integer"
+        },
+        "fix" : {
+          "description" : "the workflow agent's own words: the report's fix: line",
+          "type" : "string"
+        },
+        "missed" : {
+          "description" : "later workflows it was handed to that still failed",
+          "type" : "integer"
+        },
+        "pattern" : {
+          "properties" : {
+            "code" : {
+              "description" : "observed: the toolchain's code for the error",
+              "type" : "string"
+            },
+            "key" : {
+              "description" : "the four as one: the pattern's identity",
+              "type" : "string"
+            },
+            "language" : {
+              "type" : "string"
+            },
+            "line" : {
+              "description" : "observed: the first error line, paths, numbers and quoted names masked",
+              "type" : "string"
+            },
+            "tool" : {
+              "description" : "observed: the program and its subcommand",
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "tool",
+            "line",
+            "key"
+          ],
+          "type" : "object"
+        },
+        "seenIn" : {
+          "description" : "the projects it was confirmed in, by identity",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "workflow" : {
+          "description" : "the workflow that first kept it: resolve, workaround",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "workflow",
+        "pattern",
+        "cause",
+        "fix",
+        "confirmed",
+        "missed",
+        "seenIn"
       ],
       "type" : "object"
     },
@@ -383,81 +434,148 @@
       ],
       "type" : "object"
     },
-    "profile" : {
+    "reading" : {
       "properties" : {
-        "build" : {
+        "digest" : {
+          "description" : "what was read, digested",
           "type" : "string"
         },
-        "dependencies" : {
-          "description" : "as the manifest writes them: `next 16.3.8`",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
+        "format" : {
+          "const" : "craft-reading/1"
         },
-        "dev" : {
+        "model" : {
           "type" : "string"
         },
-        "frameworks" : {
-          "description" : "attached frameworks by label and version",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        },
-        "languages" : {
+        "parts" : {
           "items" : {
             "properties" : {
-              "files" : {
-                "type" : "integer"
+              "build" : {
+                "properties" : {
+                  "command" : {
+                    "type" : "string"
+                  },
+                  "from" : {
+                    "description" : "the file it was read from, `Makefile:12`",
+                    "type" : "string"
+                  },
+                  "unresolved" : {
+                    "description" : "why the harness could not stand behind it",
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "command"
+                ],
+                "type" : "object"
               },
-              "language" : {
+              "directory" : {
+                "description" : "`.` for the root, else relative to it",
+                "type" : "string"
+              },
+              "note" : {
+                "type" : "string"
+              },
+              "run" : {
+                "properties" : {
+                  "command" : {
+                    "type" : "string"
+                  },
+                  "from" : {
+                    "description" : "the file it was read from, `Makefile:12`",
+                    "type" : "string"
+                  },
+                  "unresolved" : {
+                    "description" : "why the harness could not stand behind it",
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "command"
+                ],
+                "type" : "object"
+              },
+              "serve" : {
+                "properties" : {
+                  "command" : {
+                    "type" : "string"
+                  },
+                  "from" : {
+                    "description" : "the file it was read from, `Makefile:12`",
+                    "type" : "string"
+                  },
+                  "unresolved" : {
+                    "description" : "why the harness could not stand behind it",
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "command"
+                ],
+                "type" : "object"
+              },
+              "test" : {
+                "properties" : {
+                  "command" : {
+                    "type" : "string"
+                  },
+                  "from" : {
+                    "description" : "the file it was read from, `Makefile:12`",
+                    "type" : "string"
+                  },
+                  "unresolved" : {
+                    "description" : "why the harness could not stand behind it",
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "command"
+                ],
+                "type" : "object"
+              },
+              "what" : {
                 "type" : "string"
               }
             },
             "required" : [
-              "language",
-              "files"
+              "directory",
+              "what"
             ],
             "type" : "object"
           },
+          "maxItems" : 6,
           "type" : "array"
         },
-        "manifests" : {
+        "read" : {
+          "description" : "the files the model was shown",
           "items" : {
             "type" : "string"
           },
           "type" : "array"
         },
-        "packageManager" : {
+        "readAt" : {
+          "format" : "date-time",
           "type" : "string"
         },
-        "platforms" : {
+        "stack" : {
+          "description" : "the languages, tools, frameworks and formats it is made with, by their usual names",
           "items" : {
             "type" : "string"
           },
           "type" : "array"
         },
-        "sourceRoots" : {
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        },
-        "test" : {
-          "type" : "string"
-        },
-        "typecheck" : {
+        "summary" : {
+          "description" : "one line: what the workspace is",
           "type" : "string"
         }
       },
       "required" : [
-        "languages",
-        "manifests",
-        "platforms",
-        "dependencies",
-        "sourceRoots",
-        "frameworks"
+        "format",
+        "summary",
+        "stack",
+        "parts",
+        "read",
+        "digest",
+        "readAt"
       ],
       "type" : "object"
     },
@@ -489,7 +607,7 @@
           "type" : "array"
         },
         "format" : {
-          "const" : "craft-record/2"
+          "const" : "craft-record/1"
         },
         "id" : {
           "pattern" : "^(cv|ap|nt|ls)-[0-9a-f]{16}$",
@@ -513,11 +631,11 @@
           "format" : "date-time",
           "type" : "string"
         },
+        "learned" : {
+          "$ref" : "#/$defs/learned"
+        },
         "lesson" : {
           "$ref" : "#/$defs/lesson"
-        },
-        "profile" : {
-          "$ref" : "#/$defs/profile"
         },
         "project" : {
           "properties" : {
@@ -533,6 +651,9 @@
             "label"
           ],
           "type" : "object"
+        },
+        "reading" : {
+          "$ref" : "#/$defs/reading"
         },
         "revision" : {
           "minimum" : 1,
@@ -550,18 +671,11 @@
               "type" : "array"
             },
             "stack" : {
-              "properties" : {
-                "major" : {
-                  "type" : "integer"
-                },
-                "name" : {
-                  "type" : "string"
-                }
+              "description" : "what the work was made with, as the workspace reading named it when the record was kept",
+              "items" : {
+                "type" : "string"
               },
-              "required" : [
-                "name"
-              ],
-              "type" : "object"
+              "type" : "array"
             }
           },
           "type" : "object"
@@ -575,7 +689,8 @@
               "enum" : [
                 "observed",
                 "turn",
-                "stated"
+                "stated",
+                "workflow"
               ],
               "type" : "string"
             },
@@ -692,7 +807,7 @@
       "type" : "object"
     }
   },
-  "$id" : "craft-record/2",
+  "$id" : "craft-record/1",
   "$ref" : "#/$defs/record",
   "$schema" : "https://json-schema.org/draft/2020-12/schema",
   "description" : "What Craft learned about a project or was told, with the evidence that would falsify it. Staleness is never stored: an export row carries it as of the export. Spec: Schema/Storage.md.",

@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `8e73f5ca (with uncommitted changes)` by `scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `ec26141c` by `Scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -8,7 +8,7 @@ rebuilt from the project's files or belongs to this Mac on purpose (§9).
 
 | File | What it describes |
 | --- | --- |
-| [`craft-record.schema.json`](craft-record.schema.json) | A record (`craft-record/2`), its payloads, the ledger and an export row (§4, §6) |
+| [`craft-record.schema.json`](craft-record.schema.json) | A record (`craft-record/1`), its payloads, the ledger and an export row (§4, §6) |
 | [`craft-index.schema.json`](craft-index.schema.json) | Every document in `craft-index` as AII holds it: its kinds, their ids and entities, each payload (§2, §6, §7) |
 | [`code-card.schema.json`](code-card.schema.json) | A code card (`craft-card/1`), what `craft-code` holds (§8) |
 | Craft's `Docs/craft-turn.schema.json` | A turn record (`craft-turn/1`), this Mac's log of one turn (§9) |
@@ -16,7 +16,7 @@ rebuilt from the project's files or belongs to this Mac on purpose (§9).
 All four are generated from the code (`RecordSchemaJSON`, `IndexGroupSchemaJSON`, `CardSchemaJSON`,
 `TurnRecordSchemaJSON`); `CRAFT_UPDATE_GOLDEN=1` rewrites them, and a test fails when they drift — another builds each
 `craft-index` document as the stores do and holds it to its schema. AII's repository keeps a copy of this document and
-the schemas of what is in AII, under `Schemas/Craft/`: `scripts/schema/publish-aii.py` writes it, and it is never edited
+the schemas of what is in AII, under `Schemas/Craft/`: `Scripts/schema/publish-aii.py` writes it, and it is never edited
 there.
 
 ## 1. Layers
@@ -26,9 +26,9 @@ Four layers, each named for what it is. Only the second is knowledge Craft learn
 | Layer | Contents | Stored | Written by | Read by |
 | --- | --- | --- | --- | --- |
 | **Code index** (derived) | code cards — and so how the project writes code | AII (`craft-code`) and this Mac's index | the watch engine (`ProjectWatch` → `LazyThreadIndex`) | retrieval, the knowledge window |
-| **Craft records** (learned or told) | `project`, `approach`, `lesson`, `note`, `instruction` — each with evidence and staleness | AII (`craft-records`, `craft-index`) | the record keeper (`RecordKeeper`), `InstructionsStore` | retrieval, the prompt, the knowledge window |
+| **Craft records** (learned or told) | `project`, `approach`, `lesson`, `note`, `instruction` — each with evidence and staleness; the lessons every project shares, every workflow's | AII (`craft-records`, `craft-index`) | the record keeper (`RecordKeeper`), `InstructionsStore`, `WorkflowLessonKeeper` | retrieval, the prompt, the knowledge window; workflow lessons a workflow's `lessons` step and the pack's lesson cards |
 | **Bookkeeping** (not knowledge) | the recall ledger; project settings | AII (`craft-index`) | the keeper; `SettingsStore` | the keeper, `ConfigStore` |
-| **Local only** | turn logs, framework reference, global app config, the outbox | `~/.rao/apps/craft/…`, `~/Library/Application Support/Craft/config.json` | the turn, the frameworks installer, Settings | Lantern, the reference band, every process |
+| **Local only** | turn logs, the screenshots a request attached, the text of the documents it attached, the AIIs Craft asks, global app config, the outbox | `~/.rao/apps/craft/…`, `~/Library/Application Support/Craft/config.json` | the turn, the AIIs window and `craft aii`, Settings | Lantern, every session's sourcing, every process |
 
 ## 2. Groups
 
@@ -38,7 +38,7 @@ apps share with no account, `aii-local`. Every group begins `craft-`, every docu
 
 | Group | Holds | Searched |
 | --- | --- | --- |
-| `craft-records` | approach, lesson and note records | yes — the record query (`ThreadBoot.searchRecords`) |
+| `craft-records` | approach, lesson and note records; the workflow lessons, every project's under the key `learned` | yes — the record query (`ThreadBoot.searchRecords`), which drops a project's lessons (they come by place) and notes a workflow lesson by meaning for the lesson cards; the keeper reads workflow lessons by their prefix (`craft/lesson/learned.`) |
 | `craft-index` | the project record, instruction records (every project's under the key `user`), the recall ledger, the settings | no — read by prefix |
 | `craft-code` | every project's code cards, one document per file; the project is the id's first segment (`<scope>.`) and the entity `project:<scope>` | yes — code queries: this project's by its id; every project's that the graph links to it, as reference, when the session reaches every project |
 
@@ -47,8 +47,8 @@ document by its kind, its id and its payload ([`craft-index.schema.json`](craft-
 
 | Document | `kind` | Envelope id | Payload | Entity |
 | --- | --- | --- | --- | --- |
-| The project record | `project` | `<project key>.pj-<16 hex>.<v16>` | a `craft-record/2` record with `profile` | `record:pj-…` |
-| Instructions | `instruction` | `<project key>.in-<16 hex>.<v16>` (`user` for every project) | a `craft-record/2` record with `instruction` | `record:in-…` |
+| The project record | `project` | `<project key>.pj-<16 hex>.<v16>` | a `craft-record/1` record with `reading` | `record:pj-…` |
+| Instructions | `instruction` | `<project key>.in-<16 hex>.<v16>` (`user` for every project) | a `craft-record/1` record with `instruction` | `record:in-…` |
 | The ledger | `ledger` | `<project key>.<v16>` | `{"type":"ledger","ledger":<craft-ledger/1>,"path"}` | `ledger:<project key>` |
 | Settings | `settings` | `<project key>.<v16>` | `{"format":"craft-settings/1","project","label","path","settings","writtenAt"}` | `settings:<project key>` |
 
@@ -71,10 +71,11 @@ reads AII again rather than write back from memory.
 
 - **`<project key>`** is the project's id when it is a plain name (`g0a7fe5079e7a`, `n-shop`), else `h` and 12 hex of
   its hash (`CraftThreadAddress.projectKey`). What holds for every project is under the key `user`
-  (`ProjectIdentity.everyProject`).
+  (`ProjectIdentity.everyProject`); what every project's workflows learned, under `learned` (`RecordProject.learned`).
+  Neither can be a project's id, which is always `g…`, `n-…` or `h…`.
 - **A project's id** is its repository's first commit (`g…`), so every clone of one repository is one project; a
-  folder with no commit is `n-<name>` until it has one, and then what it kept under the name moves to the commit's
-  id (`adoptKeptByName`, `RecordStore.adopt`).
+  folder with no commit is `n-<name>` until it has one, and then its instructions, settings, records and ledger move
+  to the commit's id when a session next opens it (`IdentityMove`, the one place a change of identity is followed).
 - **`<record id>`** is deterministic: the kind's prefix and 16 hex of a hash over the format, the kind, the project
   and what the record is about (`RecordID`). Two writers of one fact write one record.
 - **`<v16>`** is 16 hex of the content's hash: every version is a document of its own. A write files the new one,
@@ -83,40 +84,53 @@ reads AII again rather than write back from memory.
 
 ## 4. A record
 
-`craft-record/2` (`Record`, `RecordCodec`): canonical bytes — sorted keys, ISO-8601 to the second, nils omitted,
+`craft-record/1` (`Record`, `RecordCodec`): canonical bytes — sorted keys, ISO-8601 to the second, nils omitted,
 evidence in a fixed order. A key this build does not know is kept and written back; a kind, status, source or
 format it does not know makes the record **inert**: read and kept, never rendered, rewritten or removed. A record
-of another format (`craft-record/1`) is inert, and its id hashes another format, so nothing older can come back.
+of another format is inert, and its id hashes that format, so nothing written before can come back. Every format stays
+at `/1` while Craft is 0.0.0: a change to a record's shape changes `/1` in place and starts fresh.
 
 | Key | What it holds |
 | --- | --- |
 | `format`, `id`, `kind`, `revision` | the format; the deterministic id; the kind; raised on every write |
 | `project` | the project it belongs to: id and label |
 | `claim`, `claimBy` | one sentence; `craft`, `model` or `person` |
-| `scope` | the language, the stack and its major version, the paths it is about |
-| `source` | `observed`, `turn` or `stated`, with the detector, session, plan, rounds, model |
+| `scope` | the language, what the work was made with (the workspace reading's stack words), the paths it is about |
+| `source` | `observed`, `turn`, `stated` or `workflow`, with the detector, session, plan, rounds, model |
 | `status` | `candidate` → `verified` \| `superseded`; `supersedes` / `supersededBy` link the chain |
 | `createdAt`, `statusChangedAt`, `lastValidated` | when it was made, last moved, last found true |
 | `evidence` | up to 16 pointers that would prove it wrong (§5) |
-| `approach`, `lesson`, `instruction`, `profile` | the kind's payload |
+| `approach`, `lesson`, `instruction`, `reading`, `learned` | the kind's payload |
 
 | Kind | Id | `claimBy` | `source` | Written by | Evidence | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `project` | `pj-` · the project | `craft` | `observed` (`projectEnvironment/1`) | `RecordKeeper.keepProfile`, at session open and after a turn that wrote files; only when the facts changed | its manifests, as anchors | verified |
-| `approach` | `ap-` · the plan | `model` | `turn` | `RecordKeeper.keepApproach`, when files changed and every check passed after the last edit (`PlanSupervisor`) | anchors (symbols, files), checks, stacks | verified only when the plan completed with a unit or run check and, with a goal, the judicator's reading; candidate otherwise |
+| `project` | `pj-` · the project | `model` | `observed` (`workspaceReading/1`) | `RecordKeeper.keepReading`, when a build turn's setup step read the workspace; only when the reading changed | the files its commands were read from, as anchors | candidate |
+| `approach` | `ap-` · the plan | `model` | `turn` | `RecordKeeper.keepApproach`, when files changed and every check passed after the last edit (`PlanSupervisor`) | anchors (symbols, files), checks with the commands that ran | verified only when the plan completed with a unit or run check and, with a goal, the judicator's reading; candidate otherwise |
 | `lesson` | `ls-` · place + failure | `craft` | `turn` | `RecordKeeper.keepLessons` (`LessonProjector`), whether or not the plan completed | the file it failed in | candidate |
-| `note` | `nt-` · the claim | `model` or `person` | `turn` or `stated` | `remember` | the files, symbols and stacks it names | candidate |
+| `note` | `nt-` · the claim | `model` or `person` | `turn` or `stated` | `remember` | the files and symbols it names | candidate |
 | `instruction` | `in-` · the project | `person` | `stated` | `InstructionsStore`; one record a project, revised; cleared is a record with no words, never said is no record | none | verified |
+| `lesson` (workflow) | `ls-` · `learned` + the failure's pattern + the fix | `craft` | `workflow` | `WorkflowLessonKeeper.keep`, when a workflow confirmed and its agent's report ended with `cause:` and `fix:` (`WorkflowLessonOps.learning`, kept by `WorkflowDoor.learn`); the same pattern fixed the same way in another project, or by another workflow, raises `confirmed` and adds it to `seenIn` | none: a project's file means nothing in another | candidate; its standing is `confirmed − missed`, and it is never recalled once `missed > confirmed` |
 
-The project record's payload is `languages` (with files), `manifests`, `build`, `test`, `typecheck`, `dev`,
-`platforms`, `packageManager`, `dependencies` (as the manifest writes them), `sourceRoots` and `frameworks` (label
-and version) — every field read off the project (`ProjectEnvironment`).
+The project record's payload is the workspace reading (`craft-reading/1`, `WorkspaceReading`): a summary, the stack
+words, and the parts — each a folder, what it is, and the commands that build, check, run and serve it, each with the
+file and line it was read from, or why it will not run here — with the files it read and their digest. It is what the
+session's model read off the workspace's own files (`SetupAgent`), never what a run proved: the checks that passed in
+earlier work (an approach's check evidence, with its command) outrank it wherever both are said. An approach and a note
+are scoped by its stack words.
+
+A workflow lesson's payload is `learned` (`WorkflowLesson`): the `workflow` that first kept it (`resolve`,
+`workaround`), the failure's `pattern` — its language, the tool (the command's program and first word that is neither a
+flag nor a path), the toolchain's code when the line gives one, and the first error line with paths, numbers and quoted
+names masked; a check the judicator read has the tool `judicator`, the reading's kind as its code and no line — the
+agent's `cause` and `fix`, one line each, `confirmed` and `missed`, and the projects it was `seenIn`. It belongs to no project's keeper, so retention never sweeps
+it. A turn's pack carries it as a lesson card (`CodeContextRetriever+LessonCards`) when a check of the open plan failed
+with its pattern or one like it, or when the record query found it by meaning in a language the workspace is in. Two writers — the app and `craft` — may score one lesson at once: revision adoption
+keeps every record, but a count raced by both can lose one increment. Accepted for v1.
 
 ## 5. Evidence and staleness
 
 **Staleness is computed, never stored.** Each pointer is checked against the live index whenever a record is read
-(`RecordCheck`): the file or symbol is gone → **contradicted**; its hash moved → **drifted**; the stack's major
-version moved → **shifted**. A symbol is found by what it is, not only by its id (moved, renamed, an extension by the
+(`RecordCheck`): the file or symbol is gone → **contradicted**; its hash moved → **drifted**. A symbol is found by what it is, not only by its id (moved, renamed, an extension by the
 type it extends). Anchors decide; other pointers escalate at half their weight. A stale record ages in days of the
 project's use and goes past the retention window (`RecordRetention`); fresh, stated and inert records never age.
 
@@ -130,7 +144,7 @@ project's use and goes past the retention window (`RecordRetention`); fresh, sta
 | `files` | each file a record cites: its revision and hash |
 | `recall` | per source key: placed, consulted, credited, and the last turns |
 
-Source keys: a record's id (`ap-…`, `ls-…`, `nt-…`); a card, `code:<path>#<name>`; reference, `framework:<name>/<id>` and `thread:<scope>/<id>`. Written when a day of use begins, at the end of a turn
+Source keys: a record's id (`ap-…`, `ls-…`, `nt-…`); a card, `code:<path>#<name>`; reference, `project:<scope>/<id>` and `aii:<id>/<id>`. Written when a day of use begins, at the end of a turn
 that wrote files, as a session closes, and otherwise at most every ten minutes; when the ledger outgrows an envelope
 the sources recalled longest ago drop first.
 
@@ -185,7 +199,9 @@ Under `~/.rao/apps/craft/` (`AII_HOME` moves `~/.rao`):
 | `index/<scope>/` | this clone's code index | derived: rebuilt from the files |
 | `turns/<project id>/` | one `craft-turn/1` record a turn | this Mac's runs, a log, not knowledge |
 | `lantern/<project id>/` | Lantern's grades of steps | this Mac's review of its own runs |
-| `frameworks/` | what each installed framework knows | shared reference, installed per Mac |
+| `captures/<project id>/` | the screenshots a request attached, one PNG each, pruned with the turn logs that name them | this Mac's pictures of its own screen; the turn keeps what the vision model read in them, never the picture |
+| `attachments/<project id>/<session id>/` | the text of each document a request attached, read when it was attached; deleted once the turn placed it whole, else when its session closes, and every folder when the app starts | the person's own files, read for one conversation: the turn's block holds what the model was shown, nothing is kept past the session |
+| `aiis.json` | the AIIs Craft asks for knowledge, and which are connected (`craft-aii-connections/1`) | this Mac's connections: what each one is is asked of it, and every session's sourcing reads the file |
 | `outbox/` | records and ledgers AII has not confirmed yet | in transit: filed and removed on the next contact |
 | `agents/`, `rules.json` | installed agent runners; "Always allow" rules | this Mac's software and permissions |
 
@@ -196,8 +212,7 @@ machine-wide, not a project's.
 
 Move the AII folder and every project comes with it: its project record, approaches, lessons, notes, instructions,
 ledger and settings are AII documents keyed by the project's commit id, which every clone shares. The code index is
-rebuilt from the files on the first pass; framework reference is installed where
-Craft runs. Nothing a project needs is a file inside the project, and nothing is a copy that could disagree with AII.
+rebuilt from the files on the first pass; the AIIs Craft asks are this Mac's own connections. Nothing a project needs is a file inside the project, and nothing is a copy that could disagree with AII.
 
 ## 11. Starting fresh
 

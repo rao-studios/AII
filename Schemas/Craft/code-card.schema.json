@@ -386,11 +386,11 @@
     "check" : {
       "properties" : {
         "command" : {
-          "description" : "run from the project root; for runs, what it shows in a few words",
+          "description" : "the command, run in directory as written; for runs, the command that starts it",
           "type" : "string"
         },
         "directory" : {
-          "description" : "where to run it, relative to the project root; omit for the root. A package you create inside the project must be checked with its own directory, or the check proves only that the host project still builds. A runs check names one: . for the project itself",
+          "description" : "where to run it, relative to the workspace root; omit for the root. A part you create inside the workspace is checked in its own directory, or the check proves only that what surrounds it still builds. A runs check names one: . for the workspace itself",
           "type" : "string"
         },
         "expectExit" : {
@@ -398,7 +398,7 @@
           "type" : "integer"
         },
         "kind" : {
-          "description" : "runs: Craft starts the unit from its own manifest and looks for what outputContains names",
+          "description" : "build: what makes the part (a program, a site, a PDF, a book); test: what checks the work; runs: Craft runs the command in directory and watches for what outputContains names",
           "enum" : [
             "build",
             "test",
@@ -408,7 +408,7 @@
           "type" : "string"
         },
         "outputContains" : {
-          "description" : "text the output must contain; for runs, what a person would see: window, output, exits or serves",
+          "description" : "command: text its output must contain; runs: what a person would see: window, output, exits or serves. Never on build or test: they pass by their exit status",
           "type" : "string"
         },
         "pageContains" : {
