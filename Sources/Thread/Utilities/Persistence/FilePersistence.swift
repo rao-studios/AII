@@ -22,24 +22,19 @@ final class FilePersistence : AnyPersistence, @unchecked Sendable {
     
     let logger: Logger
     
+    /// PIN: NO FILE-SYSTEM CALL HERE. A store is made for every document a start-up or a search
+    /// touches, so the key is joined as a file (`isDirectory: false`: no `lstat` to ask whether it
+    /// is a folder) and nothing is created: `configure` makes the root, and `save` makes a new
+    /// file's folders.
     required init(key: String,
                   kind: PersistenceKind,
                   logger: Logger) {
         let rootPath: URL = FilePersistence.getDefaultURL()
-        
+
         self.key = key
-        
-        self.url = rootPath.appendingPathComponent(key)
+
+        self.url = rootPath.appendingPathComponent(key, isDirectory: false)
         self.logger = logger
-        
-        do {
-            try FileManager.default.createDirectory(at: rootPath,
-                                                     withIntermediateDirectories: true,
-                                                     attributes: nil)
-        }
-        catch let error {
-            logger.error(.init(stringLiteral: error.localizedDescription))
-        }
     }
     
     /// Process-wide data root override, set once at startup from `--data-dir`

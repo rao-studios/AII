@@ -70,7 +70,7 @@ final class Flow16_DeletionCleanupTests: XCTestCase {
     func testPartitionDataFileWrittenOnPut() async throws {
         let mutator = makeTableMutator()
         let docId   = "doc-write-\(testNodeId!)"
-        createdKeys.append("documents/\(docId)-parts")
+        createdKeys.append(DocumentFiles.partsKey(docId))
 
         await mutator.put(
             id: docId,
@@ -78,7 +78,7 @@ final class Flow16_DeletionCleanupTests: XCTestCase {
             request: .test()
         )
 
-        let partsFile = FilePersistence(key: "documents/\(docId)-parts", kind: .basic, logger: .test)
+        let partsFile = FilePersistence(key: DocumentFiles.partsKey(docId), kind: .basic, logger: .test)
         let stored: [PartitionData]? = partsFile.restore()
         XCTAssertNotNil(stored,
             "documents/{id}-parts must be written when a document is indexed")
@@ -94,7 +94,7 @@ final class Flow16_DeletionCleanupTests: XCTestCase {
     func testPartitionDataFilePurgedByFilePersistence() async throws {
         let mutator = makeTableMutator()
         let docId   = "doc-purge-\(testNodeId!)"
-        createdKeys.append("documents/\(docId)-parts")
+        createdKeys.append(DocumentFiles.partsKey(docId))
 
         await mutator.put(
             id: docId,
@@ -102,7 +102,7 @@ final class Flow16_DeletionCleanupTests: XCTestCase {
             request: .test()
         )
 
-        let partsFile = FilePersistence(key: "documents/\(docId)-parts", kind: .basic, logger: .test)
+        let partsFile = FilePersistence(key: DocumentFiles.partsKey(docId), kind: .basic, logger: .test)
         XCTAssertNotNil(partsFile.restore() as [PartitionData]?,
             "Precondition: -parts file must exist before purge")
 
@@ -122,10 +122,10 @@ final class Flow16_DeletionCleanupTests: XCTestCase {
     func testBothDocumentFilesArePurgedIndependently() async throws {
         let mutator = makeTableMutator()
         let docId   = "doc-both-\(testNodeId!)"
-        createdKeys += ["documents/\(docId)", "documents/\(docId)-parts"]
+        createdKeys += [DocumentFiles.documentKey(docId), DocumentFiles.partsKey(docId)]
 
         // Write the document file (simulating what Database.put writes).
-        let docFile = FilePersistence(key: "documents/\(docId)", kind: .basic, logger: .test)
+        let docFile = FilePersistence(key: DocumentFiles.documentKey(docId), kind: .basic, logger: .test)
         docFile.save(state: Database.Document.test(id: docId))
 
         await mutator.put(
@@ -134,7 +134,7 @@ final class Flow16_DeletionCleanupTests: XCTestCase {
             request: .test()
         )
 
-        let partsFile = FilePersistence(key: "documents/\(docId)-parts", kind: .basic, logger: .test)
+        let partsFile = FilePersistence(key: DocumentFiles.partsKey(docId), kind: .basic, logger: .test)
 
         // Both files should exist before purge.
         XCTAssertTrue(FileManager.default.fileExists(atPath: docFile.url.path()),

@@ -56,7 +56,7 @@ Durability is a 1-second debounced full-file snapshot; cold-path mutations (remo
 
 Holds everything for one document:
 
-- Lean slots (PQ codes + IDs — text lives on disk in `documents/{id}-parts`)
+- Lean slots (PQ codes + IDs — text lives on disk in `documents/{shard}/{id}-parts`)
 - Learned codebooks (trained from the document's own partitions)
 - `entityIds` — graph entities this document contributes provenance to
 - Optional metadata blob
@@ -106,7 +106,7 @@ Entity/relationship extraction happens at ingest: caller-provided payloads, keyw
 ## Index Flow
 
 1. `Database+Put.putBatch(request:)` receives text chunks, a `GraphPayload`, and owner metadata (embedding + provisional entity resolution already ran in the route/gRPC layer).
-2. Parts files (`documents/{id}-parts`) are pre-written in a bounded parallel task group.
+2. Parts files (`documents/{shard}/{id}-parts`) are pre-written in a bounded parallel task group.
 3. Register document with `ThreadRegistry` (or link existing if deduplicated).
 4. `TableMutator.putBatch`: `graphStore.upsert(...)` resolves entity IDs → `table.put(...)` trains a fresh `PartitionIndex`.
 5. Both stores flush on a shared 1-second debounce; removes and shutdown save immediately.

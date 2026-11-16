@@ -73,7 +73,7 @@ extension Database {
     /// Per-document file holding `[PartitionData]` — written at index time and
     /// loaded on demand during content resolution.
     nonisolated func partitionStore(for id: DocumentID) -> FilePersistence {
-        FilePersistence(key: "documents/\(id)-parts", kind: .basic, logger: logger.base)
+        FilePersistence(key: DocumentFiles.partsKey(id), kind: .basic, logger: logger.base)
     }
 
     /// Load all partition metadata records for a document. Returns nil when the file
@@ -106,7 +106,7 @@ extension Database {
     /// - Parameter id: The `DocumentID`.
     /// - Returns: The `FilePersistence` object.
     nonisolated func documentStore(for id: DocumentID) -> FilePersistence {
-        FilePersistence(key: "documents/\(id)",
+        FilePersistence(key: DocumentFiles.documentKey(id),
                         kind: .basic,
                         logger: logger.base)
     }

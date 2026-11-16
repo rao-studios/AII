@@ -276,7 +276,7 @@ gate your lane down to nothing. When a search comes back empty, try `entities` o
 | `POST /v1/clear` | `{"confirm": true}` clears your lane; `all` is the stack identity's |
 
 Data lives in `~/.rao/aii/thread/db` as binary plists: `table-<node>`, `graph-<node>`,
-`registry-<node>`, `documents/<id>` and `documents/<id>-parts`, `embedder-<node>`, `node-id`,
+`registry-<node>`, `documents/<shard>/<id>` and `documents/<shard>/<id>-parts`, `embedder-<node>`, `node-id`,
 `graph-extraction-policy`.
 
 Run it alone for development. The supervisor passes the same flags:

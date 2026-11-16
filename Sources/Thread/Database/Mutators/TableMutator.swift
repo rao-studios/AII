@@ -111,7 +111,7 @@ actor TableMutator {
     }
 
     func remove(id: DocumentID) async {
-        FilePersistence(key: "documents/\(id)-parts", kind: .basic, logger: logger.base).purge()
+        FilePersistence(key: DocumentFiles.partsKey(id), kind: .basic, logger: logger.base).purge()
         var table = await loadedTable()
         var graphStore = await loadedGraph()
         let entityIds = table.index(for: id)?.entityIds ?? []
@@ -125,7 +125,7 @@ actor TableMutator {
 
     func removeAll(documentIds: [DocumentID], request: DatabaseRequest) async {
         for documentId in documentIds {
-            FilePersistence(key: "documents/\(documentId)-parts", kind: .basic, logger: logger.base).purge()
+            FilePersistence(key: DocumentFiles.partsKey(documentId), kind: .basic, logger: logger.base).purge()
         }
         var table = await loadedTable()
         var graphStore = await loadedGraph()
@@ -282,7 +282,7 @@ actor TableMutator {
 
     private func savePartitionData(documentId: DocumentID, partitions: [Database.Partition]) {
         let metadata = partitions.map { PartitionData(from: $0) }
-        FilePersistence(key: "documents/\(documentId)-parts", kind: .basic,
+        FilePersistence(key: DocumentFiles.partsKey(documentId), kind: .basic,
                         logger: logger.base).save(state: metadata)
     }
 

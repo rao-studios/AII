@@ -11,6 +11,10 @@ import Foundation
 
 extension Database {
     func initializeRegistry() {
+        // A flat documents/ folder (every document's files in one folder) moves into shards once,
+        // before any document is read: DocumentFiles.
+        let laidOut = DocumentFiles.shardFlatLayout(root: FilePersistence.getDefaultURL(), logger: logger.base)
+
         let storage = registryStore
         // This node's own registry; a file that is absent or no longer decodes starts fresh.
         var registry: ThreadRegistry = storage.restore() ?? .init()
@@ -19,19 +23,20 @@ extension Database {
         var initial: [DocumentID: Database.Document] = [:]
         var orphanedIds: [DocumentID] = []
 
+        // One look per document: restore() answers nil for a file that is not there.
         for documentId in allDocumentIds {
-            let store = documentStore(for: documentId)
-            guard FileManager.default.fileExists(atPath: store.url.path(percentEncoded: false)) else {
-                orphanedIds.append(documentId)
-                continue
-            }
-            if let document: Database.Document = store.restore() {
+            if let document: Database.Document = documentStore(for: documentId).restore() {
                 initial[documentId] = document
             } else {
                 orphanedIds.append(documentId)
             }
         }
 
+        // While files wait in documents-flat/, a document not found in its shard may be one of them.
+        if !laidOut, !orphanedIds.isEmpty {
+            logger.info("Registry Init", "⚠️ \(orphanedIds.count) document file(s) not in their shards yet; none dropped")
+            orphanedIds.removeAll()
+        }
         if !orphanedIds.isEmpty {
             for id in orphanedIds { registry.removeOrphaned(documentId: id) }
             storage.save(state: registry)

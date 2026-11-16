@@ -257,9 +257,9 @@ extension Database {
                     PartitionData(from: $0, keepEmbedding: $1)
                 }
                 group.addTask {
-                    FilePersistence(key: "documents/\(document.id)", kind: .basic, logger: loggerBase)
+                    FilePersistence(key: DocumentFiles.documentKey(document.id), kind: .basic, logger: loggerBase)
                         .save(state: document)
-                    FilePersistence(key: "documents/\(document.id)-parts", kind: .basic, logger: loggerBase)
+                    FilePersistence(key: DocumentFiles.partsKey(document.id), kind: .basic, logger: loggerBase)
                         .save(state: partitionData)
                 }
                 inFlight += 1

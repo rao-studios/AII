@@ -11,9 +11,11 @@ Thread persists all state as binary property-list snapshots under its data direc
 | `table-<nodeId>` | `PartitionTable` — PQ codebooks, lean slots, entity linkage |
 | `graph-<nodeId>` | `GraphStore` — entities, relationships and predicates (adjacency rebuilt on decode) |
 | `registry-<nodeId>` | `ThreadRegistry` — ownership, groups, access, stats |
-| `documents/{id}` | `Database.Document` |
-| `documents/{id}-parts` | `[PartitionData]` — partition text/url/owner, loaded on demand; plus the caller-supplied embedding (fp32, little-endian) for partitions indexed with one, which the PQ table cannot reproduce |
+| `documents/{shard}/{id}` | `Database.Document` |
+| `documents/{shard}/{id}-parts` | `[PartitionData]` — partition text/url/owner, loaded on demand; plus the caller-supplied embedding (fp32, little-endian) for partitions indexed with one, which the PQ table cannot reproduce |
 | `node-id` | Persisted node UUID |
+
+`{shard}` is two hex digits of the id's FNV-1a hash (`DocumentFiles`): 256 folders, the same in every process. One folder of every document made each name the disk does not hold (a save's temporary name, a missing file at start-up) a scan of the whole folder on a disk whose folders are unindexed, exFAT: lookups of seconds at 57k documents.
 
 ---
 
@@ -22,7 +24,7 @@ Thread persists all state as binary property-list snapshots under its data direc
 - **Hot path (put)** — `TableMutator` and `RegistryMutator` update in-memory caches immediately and schedule a **1-second debounced** full-file save. The table and graph share one debounce so they flush together.
 - **Cold path (remove, access update, group rename, shutdown)** — saved immediately (`saveNow`).
 - All disk I/O routes through a per-cache `PersistenceActor` so concurrent saves never race on the same file.
-- **Nothing is migrated.** A file that is absent or no longer decodes reads as absent, and the node starts it fresh.
+- **Nothing is migrated, but one layout move.** A file that is absent or no longer decodes reads as absent, and the node starts it fresh. The exception is a flat `documents/` folder from before the shards: at start-up, before the registry loads, it is renamed `documents-flat/` and its files move into a fresh, sharded `documents/` (an emptied exFAT folder keeps its size). A move that stops resumes at the next start, and while files wait there the registry drops no document it cannot find.
 
 ---
 
