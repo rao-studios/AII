@@ -28,17 +28,10 @@ import Foundation
 ///      writes land in the order the value changed and a write asked for earlier can never
 ///      overwrite a later one. A value already on disk (seeded from it, or written and not
 ///      changed since) is not written again: a shutdown with nothing new costs nothing.
-/// PIN: ONE BACKGROUND WRITE AT A TIME, RESTING IN PROPORTION. `saveLatest` asks for a write;
-///      asks made while one runs fold into the next. After each background write the next waits
-///      `restFactor` times as long as that write took, so a file is being written at most a
-///      tenth of the time on any disk: a 660 MB table at an external drive's 28 MB/s (24 s)
-///      is written every ~4 min, a 1 MB one on an internal disk every fraction of a second.
-///      What a crash loses in between, start-up's sweeps drop from the registry and an ingest
-///      files again (Database+Index). `saveNow` never waits.
+/// PIN: ONE BACKGROUND WRITE AT A TIME. `saveLatest` asks for a write; asks made while one runs
+///      fold into the next, so a write slower than the asks (a large table) never queues a copy of
+///      the value behind it. `saveNow` writes at once.
 final class ThreadCache<Value: Codable & Sendable>: @unchecked Sendable {
-    /// How many times a background write's duration the next one waits.
-    static var restFactor: Int { 9 }
-
     private struct Held {
         var value: Value?
         /// Bumped on every change to `value`.
@@ -93,7 +86,7 @@ final class ThreadCache<Value: Codable & Sendable>: @unchecked Sendable {
     }
 
     /// Asks for the latest snapshot to be written in the background. The calling actor is
-    /// freed immediately; asks made while a write runs or rests fold into one more write.
+    /// freed immediately; asks made while a write runs fold into one more write.
     func saveLatest() {
         let start = schedule.withLock { state -> Bool in
             state.requested = true
@@ -108,7 +101,7 @@ final class ThreadCache<Value: Codable & Sendable>: @unchecked Sendable {
     /// Writes the latest snapshot now, if it changed — use where the write must complete
     /// before the caller returns (removes, clears, graceful shutdown).
     func saveNow() async {
-        _ = await writeLatest()
+        await writeLatest()
     }
 
     private func drain() async {
@@ -120,22 +113,16 @@ final class ThreadCache<Value: Codable & Sendable>: @unchecked Sendable {
             state.running = false
             return false
         }) {
-            let took = await writeLatest()
-            let rest = took * Self.restFactor
-            if rest > .zero { try? await Task.sleep(for: rest) }
+            await writeLatest()
         }
     }
 
     /// Writes the snapshot as it is when the write starts, unless it is already on disk.
-    /// Answers how long the write took (zero when nothing was written).
-    private func writeLatest() async -> Duration {
+    private func writeLatest() async {
         await io.run { [self] in
             let (value, stamp) = _store.withReadLock { ($0.value, $0.stamp) }
-            guard let value, written.withLock({ $0 }) != stamp else { return .zero }
-            let clock = ContinuousClock()
-            let began = clock.now
+            guard let value, written.withLock({ $0 }) != stamp else { return }
             if persistence.write(state: value) { written.withLock { $0 = stamp } }
-            return clock.now - began
         }
     }
 

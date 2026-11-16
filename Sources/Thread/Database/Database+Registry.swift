@@ -11,10 +11,9 @@ import Foundation
 
 extension Database {
     func initializeRegistry() {
-        let root = FilePersistence.getDefaultURL()
-        // A flat documents/ folder (every document's files in one folder) is set aside with one
-        // rename before any document is read: DocumentFiles.
-        DocumentFiles.setFlatAside(root: root, logger: logger.base)
+        // A flat documents/ folder (every document's files in one folder) moves into shards once,
+        // before any document is read: DocumentFiles.
+        let laidOut = DocumentFiles.shardFlatLayout(root: FilePersistence.getDefaultURL(), logger: logger.base)
 
         let storage = registryStore
         // This node's own registry; a file that is absent or no longer decodes starts fresh.
@@ -22,21 +21,22 @@ extension Database {
 
         let allDocumentIds = Array(registry.documentOwners.keys)
         var initial: [DocumentID: Database.Document] = [:]
-        var missing: [DocumentID] = []
+        var orphanedIds: [DocumentID] = []
 
-        // One look per document in its shard: restore() answers nil for a file that is not there.
+        // One look per document: restore() answers nil for a file that is not there.
         for documentId in allDocumentIds {
             if let document: Database.Document = documentStore(for: documentId).restore() {
                 initial[documentId] = document
             } else {
-                missing.append(documentId)
+                orphanedIds.append(documentId)
             }
         }
 
-        // A document missed in its shard may still be in a flat folder set aside: copied in by name.
-        let (adopted, orphanedIds) = adoptFlatDocuments(missing, root: root)
-        initial.merge(adopted) { current, _ in current }
-
+        // While files wait in documents-flat/, a document not found in its shard may be one of them.
+        if !laidOut, !orphanedIds.isEmpty {
+            logger.info("Registry Init", "⚠️ \(orphanedIds.count) document file(s) not in their shards yet; none dropped")
+            orphanedIds.removeAll()
+        }
         if !orphanedIds.isEmpty {
             for id in orphanedIds { registry.removeOrphaned(documentId: id) }
             storage.save(state: registry)
@@ -76,46 +76,6 @@ extension Database {
             "⚜️ Database Registry initialized — \(allDocumentIds.count - orphanedIds.count) document(s) pre-cached",
             service: .database
         )
-    }
-
-    /// Copies each of `ids` from a flat folder set aside into its shard, eight at a time (each
-    /// copy waits on the disk, not the CPU), and restores it. Answers the documents restored and
-    /// the ids found nowhere; an id whose file is there but could not be copied is in neither,
-    /// so it stays registered for the next start.
-    private nonisolated func adoptFlatDocuments(
-        _ ids: [DocumentID], root: URL
-    ) -> (adopted: [DocumentID: Database.Document], orphaned: [DocumentID]) {
-        guard !ids.isEmpty else { return ([:], []) }
-        let flat = root.appendingPathComponent(DocumentFiles.flatFolder, isDirectory: true)
-        guard FileManager.default.fileExists(atPath: flat.path(percentEncoded: false)) else { return ([:], ids) }
-
-        logger.info("Registry Init", "\(ids.count) document(s) not in their shards; copying them from \(DocumentFiles.flatFolder)/")
-        let results = LockedValue((adopted: [DocumentID: Database.Document](), orphaned: [DocumentID](), failed: 0))
-        let lanes = 8
-        DispatchQueue.concurrentPerform(iterations: lanes) { lane in
-            for index in stride(from: lane, to: ids.count, by: lanes) {
-                let id = ids[index]
-                switch DocumentFiles.adopt(DocumentFiles.documentKey(id), root: root, logger: logger.base) {
-                case .copied:
-                    // Its parts file travels with it; a parts file that is not there is copied
-                    // when a search first needs it (partitionDatas).
-                    _ = DocumentFiles.adopt(DocumentFiles.partsKey(id), root: root, logger: logger.base)
-                    let document: Database.Document? = documentStore(for: id).restore()
-                    results.withLock { result in
-                        if let document { result.adopted[id] = document } else { result.failed += 1 }
-                        let done = result.adopted.count + result.orphaned.count + result.failed
-                        if done % 5_000 == 0 { logger.info("Registry Init", "\(done) of \(ids.count) copied or checked") }
-                    }
-                case .absent:
-                    results.withLock { $0.orphaned.append(id) }
-                case .failed:
-                    results.withLock { $0.failed += 1 }
-                }
-            }
-        }
-        let result = results.withLock { $0 }
-        logger.info("Registry Init", "\(result.adopted.count) document(s) copied into shards, \(result.orphaned.count) found nowhere, \(result.failed) left for the next start")
-        return (result.adopted, result.orphaned)
     }
 
     var registryStore: FilePersistence {

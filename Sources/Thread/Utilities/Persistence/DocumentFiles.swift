@@ -6,24 +6,18 @@
 //  Copyright © 2026 Rao Studios LLC.
 //
 //  WHAT: Where a document's two files live under the storage root: `documents/<shard>/<id>` (the
-//        document) and `documents/<shard>/<id>-parts` (its partitions' data), and how files
-//        filed flat (every document in one `documents/` folder) reach that layout.
+//        document) and `documents/<shard>/<id>-parts` (its partitions' data), and the one-time move
+//        of a flat `documents/` folder into that layout.
 //  PIN:  SHARDED BY A STABLE HASH. The shard is two hex digits of the id's FNV-1a hash: 256
 //        folders, the same for an id in every process and every build (never Swift's `Hasher`,
 //        which is seeded per process). A folder of every document makes each name the file system
 //        does not hold cost a scan of the whole folder on a disk whose folders are unindexed
 //        (exFAT): a save's temporary name, a missing file at start-up. 256 folders keep each one
 //        small on any disk.
-//  PIN:  A FLAT FOLDER IS SET ASIDE WITH ONE RENAME AND NEVER LISTED OR CHANGED AGAIN. On
-//        exFAT through macOS's FSKit driver a folder of ~230k entries takes over ten minutes to
-//        list and ~10 s to change (every move, delete or new name rewrites it), while a file in
-//        it read by its name opens in milliseconds. So `setFlatAside` renames a flat
-//        `documents/` to `documents-flat/` and starts a fresh `documents/`, and a file is copied
-//        out by name the first time it is missed in its shard: the registry's documents at
-//        start-up (`adopt`, in parallel), a parts file when a search first needs it. Nothing
-//        is deleted from `documents-flat/` (each delete would cost a rewrite of it); once every
-//        node on the data directory has started, the folder holds only copies and stale files
-//        and can be removed whole.
+//  PIN:  A FLAT FOLDER MOVES ONCE, INTO A FRESH ONE. `shardFlatLayout` renames a flat
+//        `documents/` to `documents-flat/` and moves each file into a new `documents/`, because an
+//        exFAT folder keeps its size after it is emptied. It runs before the registry loads, and a
+//        move that stops resumes at the next start from `documents-flat/`.
 //
 
 import Foundation
@@ -52,88 +46,76 @@ enum DocumentFiles {
     /// The key of the file holding the document's partitions' data.
     static func partsKey(_ id: DocumentID) -> String { "\(folder)/\(shard(id))/\(id)\(partsSuffix)" }
 
-    /// Renames a flat `documents/` under `root` to `documents-flat/` and starts an empty
-    /// `documents/`: two operations, whatever the folder holds. A no-op when `documents/` holds
-    /// only shard folders or a flat folder is already aside.
-    static func setFlatAside(root: URL, logger: Logger) {
+    /// Moves a flat `documents/` under `root` into shards, once: a no-op when `documents/` holds
+    /// only shard folders. Answers false while files are left in `documents-flat/` (a move that
+    /// failed is kept there for the next start), so a caller drops nothing it could not find.
+    @discardableResult
+    static func shardFlatLayout(root: URL, logger: Logger) -> Bool {
         let fm = FileManager.default
         let documents = root.appendingPathComponent(folder, isDirectory: true)
         let flat = root.appendingPathComponent(flatFolder, isDirectory: true)
-        guard isFlat(documents) else { return }
-        guard !fm.fileExists(atPath: flat.path(percentEncoded: false)) else {
-            logger.warning("documents: files at the top of documents/ while \(flatFolder)/ is aside; they are not read")
-            return
-        }
-        do {
-            try fm.moveItem(at: documents, to: flat)
-            try fm.createDirectory(at: documents, withIntermediateDirectories: true)
-            logger.info("documents: a flat folder set aside as \(flatFolder)/; its files are copied into shards by name as they are needed")
-        } catch {
-            logger.error("documents: could not set the flat folder aside: \(error.localizedDescription)")
-        }
-    }
+        let flatPath = flat.path(percentEncoded: false)
 
-    enum Adoption: Equatable {
-        /// Copied from `documents-flat/` into its shard.
-        case copied
-        /// Not in `documents-flat/` (or no flat folder is aside).
-        case absent
-        /// There, but it could not be copied; it stays where it is.
-        case failed
-    }
-
-    /// Flat files asked for and not there, by path: a name missing from a folder of ~230k
-    /// entries costs seconds to look up on exFAT, so each is asked once per process.
-    private static let knownAbsent = LockedValue<Set<String>>([])
-
-    /// Shard folders this process made or found, so a copy asks the disk for each once.
-    private static let madeFolders = LockedValue<Set<String>>([])
-
-    /// Copies `key` (a `documentKey` or `partsKey`) from `documents-flat/` under `root` into its
-    /// shard, reading the flat file by its name only. Call it after the shard missed: the flat
-    /// folder is asked only for files the shards do not hold.
-    static func adopt(_ key: String, root: URL, logger: Logger) -> Adoption {
-        let fm = FileManager.default
-        let flat = root.appendingPathComponent(flatFolder, isDirectory: true)
-        // No check that the flat folder is there: a read of a file in one that is not answers
-        // "no such file" as cheaply, and each extra call is a round trip through the disk's driver.
-        // "documents/<shard>/<relative>" → "<relative>", the file's path in the flat folder.
-        let relative = key.split(separator: "/", maxSplits: 2).dropFirst(2).first.map(String.init) ?? key
-        let source = flat.appendingPathComponent(relative, isDirectory: false)
-        let sourcePath = source.path(percentEncoded: false)
-        if knownAbsent.withLock({ $0.contains(sourcePath) }) { return .absent }
-        let data: Data
-        do {
-            data = try Data(contentsOf: source)
-        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-            knownAbsent.withLock { _ = $0.insert(sourcePath) }
-            return .absent
-        } catch {
-            logger.error("documents: could not read \(relative) from \(flatFolder)/: \(error.localizedDescription)")
-            return .failed
-        }
-        let destination = root.appendingPathComponent(key, isDirectory: false)
-        do {
-            let parent = destination.deletingLastPathComponent()
-            let parentPath = parent.path(percentEncoded: false)
-            if !madeFolders.withLock({ $0.contains(parentPath) }) {
-                try fm.createDirectory(at: parent, withIntermediateDirectories: true)
-                madeFolders.withLock { _ = $0.insert(parentPath) }
+        if !fm.fileExists(atPath: flatPath) {
+            guard isFlat(documents) else { return true }
+            do {
+                try fm.moveItem(at: documents, to: flat)
+                try fm.createDirectory(at: documents, withIntermediateDirectories: true)
+            } catch {
+                logger.error("documents: could not set the flat folder aside to shard it: \(error.localizedDescription)")
+                return false
             }
-            // PIN: A PLAIN WRITE, NOT AN ATOMIC ONE. An atomic write's fsync and rename cost
-            // ~1.2 s a file on exFAT through FSKit against ~80 ms plain; a copy a stop cuts short
-            // fails to decode, so the next start misses it in its shard and copies it again.
-            try data.write(to: destination)
-            return .copied
-        } catch {
-            logger.error("documents: could not copy \(relative) into its shard: \(error.localizedDescription)")
-            return .failed
+            logger.info("documents: moving a flat folder into shards")
+        } else {
+            logger.info("documents: resuming the move into shards")
         }
+
+        let files = regularFiles(under: flat)
+        var moved = 0
+        var failed = 0
+        var made = Set<String>()
+        for relative in files {
+            let source = flat.appendingPathComponent(relative, isDirectory: false)
+            let name = (relative as NSString).lastPathComponent
+            if name.contains(".sb-") {   // an atomic save that never renamed into place
+                try? fm.removeItem(at: source)
+                continue
+            }
+            let id = relative.hasSuffix(partsSuffix) ? String(relative.dropLast(partsSuffix.count)) : relative
+            let destination = documents.appendingPathComponent(shard(id), isDirectory: true)
+                .appendingPathComponent(relative, isDirectory: false)
+            let parent = destination.deletingLastPathComponent()
+            do {
+                if made.insert(parent.path(percentEncoded: false)).inserted {
+                    try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+                }
+                if fm.fileExists(atPath: destination.path(percentEncoded: false)) {
+                    try fm.removeItem(at: source)   // moved before a stop; the shard holds it
+                } else {
+                    try fm.moveItem(at: source, to: destination)
+                }
+                moved += 1
+                if moved % 10_000 == 0 { logger.info("documents: \(moved) of \(files.count) files in shards") }
+            } catch {
+                failed += 1
+                logger.error("documents: could not move \(relative) into its shard: \(error.localizedDescription)")
+            }
+        }
+        guard failed == 0 else {
+            logger.error("documents: \(moved) file(s) moved into shards, \(failed) left in \(flatFolder)/ for the next start")
+            return false
+        }
+        do {
+            try fm.removeItem(at: flat)   // what is left: exFAT's ._ companions
+        } catch {
+            logger.error("documents: the emptied flat folder could not be removed: \(error.localizedDescription)")
+        }
+        logger.info("documents: \(moved) file(s) moved into shards")
+        return true
     }
 
     /// Whether `documents/` holds anything but shard folders: a file at its top, or a folder whose
-    /// name is not two hex digits (an id with a slash in it, filed flat). Reads the listing only
-    /// until the first such entry.
+    /// name is not two hex digits (an id with a slash in it, filed flat).
     static func isFlat(_ documents: URL) -> Bool {
         guard let entries = FileManager.default.enumerator(
             at: documents, includingPropertiesForKeys: [.isDirectoryKey],
@@ -149,5 +131,23 @@ enum DocumentFiles {
 
     static func isShardName(_ name: String) -> Bool {
         name.count == 2 && name.allSatisfy { $0.isHexDigit && !$0.isUppercase }
+    }
+
+    /// Every regular file under `folder`, as a path relative to it; exFAT's `._` companions left out.
+    ///
+    /// PIN: NO CALL PER FILE BEYOND THE LISTING. The type is the value the listing fetched with each
+    /// entry, and the relative path is the entry's last `level` components (its depth below
+    /// `folder`). `standardizedFileURL` asks the disk whether each file is reachable: 230k round
+    /// trips through exFAT's driver for craft-frameworks' folder.
+    static func regularFiles(under folder: URL) -> [String] {
+        guard let entries = FileManager.default.enumerator(
+            at: folder, includingPropertiesForKeys: [.isRegularFileKey], options: []) else { return [] }
+        var files: [String] = []
+        while let entry = entries.nextObject() as? URL {
+            guard !entry.lastPathComponent.hasPrefix("._"),
+                  (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+            files.append(entry.pathComponents.suffix(entries.level).joined(separator: "/"))
+        }
+        return files
     }
 }

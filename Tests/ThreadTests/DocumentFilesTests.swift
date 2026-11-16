@@ -5,9 +5,9 @@
 //  Created by Ritesh Pakala on 11/16/26.
 //  Copyright © 2026 Rao Studios LLC.
 //
-//  A document's files live in one of 256 shard folders named by a stable hash of its id; a flat
-//  documents/ folder is set aside with one rename and its files copied into shards by name, never
-//  moved; an abandoned atomic save at the root goes once it is old.
+//  A document's files live in one of 256 shard folders named by a stable hash of its id, and a
+//  flat documents/ folder moves into them once, resuming after a stop and never dropping a file
+//  it could not move; an abandoned atomic save at the root goes once it is old.
 //
 
 import Foundation
@@ -55,40 +55,45 @@ final class DocumentFilesTests: XCTestCase {
         }
     }
 
-    func testAFlatFolderIsSetAsideOnceAndItsFilesAreCopiedByName() throws {
+    func testAFlatFolderMovesIntoShardsOnceAndItsTempFilesGo() throws {
         let ids = ["abc", "craft-abc/Sources/A+B.swift@v1"]
         for id in ids {
             try write(id, under: "documents")
             try write(id + "-parts", under: "documents")
         }
+        try write("abc.sb-703cdddb-KBsXcX", under: "documents")
 
-        DocumentFiles.setFlatAside(root: root, logger: logger)
-        XCTAssertTrue(exists("documents-flat/abc"), "set aside whole, nothing moved out of it")
-        XCTAssertFalse(DocumentFiles.isFlat(root.appendingPathComponent("documents")), "a fresh documents/")
-
+        XCTAssertTrue(DocumentFiles.shardFlatLayout(root: root, logger: logger))
         for id in ids {
-            XCTAssertEqual(DocumentFiles.adopt(DocumentFiles.documentKey(id), root: root, logger: logger), .copied, id)
-            XCTAssertEqual(DocumentFiles.adopt(DocumentFiles.partsKey(id), root: root, logger: logger), .copied, id)
             XCTAssertTrue(exists(DocumentFiles.documentKey(id)), id)
             XCTAssertTrue(exists(DocumentFiles.partsKey(id)), id)
-            XCTAssertTrue(exists("documents-flat/" + id), "the flat copy stays: no change to the big folder")
         }
-        XCTAssertEqual(DocumentFiles.adopt(DocumentFiles.documentKey("nowhere"), root: root, logger: logger), .absent)
+        XCTAssertFalse(exists("documents/abc"), "nothing is left at the top")
+        XCTAssertFalse(exists("documents-flat"), "the emptied folder is gone")
+        XCTAssertFalse(DocumentFiles.isFlat(root.appendingPathComponent("documents")))
 
-        try write("late", under: "documents")
-        DocumentFiles.setFlatAside(root: root, logger: logger)
-        XCTAssertTrue(exists("documents/late"), "a second flat folder never replaces the one aside")
-
+        XCTAssertTrue(DocumentFiles.shardFlatLayout(root: root, logger: logger), "a sharded folder is left as it is")
         FilePersistence.configure(dataDirectory: root.path)
         defer { FilePersistence.configure(dataDirectory: nil) }
         let store = FilePersistence(key: DocumentFiles.documentKey("abc"), kind: .basic, logger: logger)
-        XCTAssertEqual(try Data(contentsOf: store.url), Data("abc".utf8), "a store finds the copied file")
+        XCTAssertEqual(try Data(contentsOf: store.url), Data("abc".utf8), "a store finds the moved file")
     }
 
-    func testNothingAsideIsNothingToCopy() {
-        DocumentFiles.setFlatAside(root: root, logger: logger)
+    func testAMoveThatStoppedResumesFromTheFlatFolder() throws {
+        // Stopped after "abc" moved and before "def" did: both copies of "abc" exist.
+        try write("abc", under: "documents-flat")
+        try write("def", under: "documents-flat")
+        try write(String(DocumentFiles.documentKey("abc").dropFirst("documents/".count)), under: "documents")
+
+        XCTAssertTrue(DocumentFiles.shardFlatLayout(root: root, logger: logger))
+        XCTAssertTrue(exists(DocumentFiles.documentKey("abc")))
+        XCTAssertTrue(exists(DocumentFiles.documentKey("def")))
         XCTAssertFalse(exists("documents-flat"))
-        XCTAssertEqual(DocumentFiles.adopt(DocumentFiles.documentKey("abc"), root: root, logger: logger), .absent)
+    }
+
+    func testNoDocumentsFolderIsNothingToMove() {
+        XCTAssertTrue(DocumentFiles.shardFlatLayout(root: root, logger: logger))
+        XCTAssertFalse(exists("documents-flat"))
     }
 
     func testAnAbandonedSaveGoesOnlyOnceItIsOld() throws {

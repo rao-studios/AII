@@ -144,7 +144,7 @@ extension Database {
         }
 
         // ── Sweep 2: registry documents with no table index → the server crashed inside the
-        // window between saves after registering but before the table flushed. Drop them from
+        // 1s debounce window after registering but before the table flushed. Drop them from
         // the registry so re-ingest is not skipped by the doesDocumentExist dedup check.
         if var registry = registryMutator.snapshot {
             let missingIndexIds = registry.documentOwners.keys.filter { table.index(for: $0) == nil }

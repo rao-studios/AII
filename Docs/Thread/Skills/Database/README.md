@@ -44,7 +44,7 @@ The `PartitionTable` and `GraphStore` mutate together on every put/remove (a doc
 
 A group lives while it holds documents. An owner's remove (one, a batch) or move drops a group it leaves empty — never another owner's — through `ThreadRegistry.unfile`. Crash recovery's orphan sweeps keep the groups they empty, so a re-index files back into them with their label, access and metadata.
 
-Durability is a debounced full-file snapshot, rate-limited by how long the last write took (`ThreadCache`); cold-path mutations (remove, access update, group rename) persist immediately.
+Durability is a 1-second debounced full-file snapshot; cold-path mutations (remove, access update, group rename) persist immediately.
 
 ---
 
@@ -109,7 +109,7 @@ Entity/relationship extraction happens at ingest: caller-provided payloads, keyw
 2. Parts files (`documents/{shard}/{id}-parts`) are pre-written in a bounded parallel task group.
 3. Register document with `ThreadRegistry` (or link existing if deduplicated).
 4. `TableMutator.putBatch`: `graphStore.upsert(...)` resolves entity IDs → `table.put(...)` trains a fresh `PartitionIndex`.
-5. Both stores ask for a save a second after the burst, written no more often than `ThreadCache` rests between writes; removes and shutdown save immediately.
+5. Both stores flush on a shared 1-second debounce; removes and shutdown save immediately.
 
 ---
 

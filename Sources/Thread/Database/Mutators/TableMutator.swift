@@ -14,8 +14,8 @@ import Foundation
 /// Both stores mutate together on every `put`/`remove` (a document's partitions and the
 /// entities it contributes are one logical unit), so a single actor owns both — no
 /// cross-store coordination is possible to get wrong. Each is persisted to its own plist
-/// (`table-<nodeId>`, `graph-<nodeId>`) a second after a burst of puts and then no more often than
-/// `ThreadCache` rests between writes; removes and shutdown save immediately.
+/// (`table-<nodeId>`, `graph-<nodeId>`) with a shared 1-second debounce, one write at a time
+/// (`ThreadCache`); removes and shutdown save immediately.
 actor TableMutator {
     private let nodeId: UUID
     private let cache:      ThreadCache<PartitionTable>
