@@ -134,17 +134,19 @@ enum DocumentFiles {
     }
 
     /// Every regular file under `folder`, as a path relative to it; exFAT's `._` companions left out.
+    ///
+    /// PIN: NO CALL PER FILE BEYOND THE LISTING. The type is the value the listing fetched with each
+    /// entry, and the relative path is the entry's last `level` components (its depth below
+    /// `folder`). `standardizedFileURL` asks the disk whether each file is reachable: 230k round
+    /// trips through exFAT's driver for craft-frameworks' folder.
     static func regularFiles(under folder: URL) -> [String] {
-        let base = folder.standardizedFileURL.path(percentEncoded: false)
-        let prefix = base.hasSuffix("/") ? base : base + "/"
         guard let entries = FileManager.default.enumerator(
             at: folder, includingPropertiesForKeys: [.isRegularFileKey], options: []) else { return [] }
         var files: [String] = []
-        for case let entry as URL in entries {
+        while let entry = entries.nextObject() as? URL {
             guard !entry.lastPathComponent.hasPrefix("._"),
                   (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
-            let path = entry.standardizedFileURL.path(percentEncoded: false)
-            if path.hasPrefix(prefix) { files.append(String(path.dropFirst(prefix.count))) }
+            files.append(entry.pathComponents.suffix(entries.level).joined(separator: "/"))
         }
         return files
     }
