@@ -135,29 +135,31 @@ final class RelaunchTests: XCTestCase {
         let server = ManagedServer(spec: spec(test, script: script, port: port), secret: secret, launcherApp: .craft)
         let started = try await server.ensureRunning(timeout: 20)
 
-        let found = try XCTUnwrap(AIILocal.locate(port: port), "it runs in <home>/aii and its run record names the port")
-        XCTAssertEqual(resolved(found.home), resolved(test.home))
-        XCTAssertEqual(found.role, .thread)
+        let home = try XCTUnwrap(AIILocal.locate(port: port), "it runs in <home>/aii and its run record names the port")
+        XCTAssertEqual(resolved(home), resolved(test.home))
+        XCTAssertEqual(AIILocal.role(home: home, port: port), .thread)
         XCTAssertNil(AIILocal.locate(port: freeLoopbackPort()), "nothing listens there")
         XCTAssertNil(AIILocal.locate(port: port, pid: started.pid, workingDirectory: "/tmp"), "not an AII home's")
 
-        let up = AIILocal.status(home: found.home, port: port)
-        XCTAssertEqual(up.role, .thread)
-        XCTAssertEqual(up.running?.pid, started.pid)
-        XCTAssertTrue(up.startable)
-        XCTAssertEqual(AIILocal.status(home: found.home, port: port + 1), AIILocal.Status(role: nil, running: nil, startable: false))
+        XCTAssertEqual(AIILocal.running(home: home, port: port)?.pid, started.pid)
+        XCTAssertTrue(AIILocal.startable(home: home, port: port))
+        XCTAssertNotNil(AIILocal.log(home: home, port: port))
+        XCTAssertNil(AIILocal.role(home: home, port: port + 1), "another port is none of this home's")
+        XCTAssertNil(AIILocal.running(home: home, port: port + 1))
+        XCTAssertFalse(AIILocal.startable(home: home, port: port + 1))
+        XCTAssertNil(AIILocal.log(home: home, port: port + 1))
 
-        let stopped = try await AIILocal.stop(home: found.home, port: port, grace: 5)
+        let stopped = try await AIILocal.stop(home: home, port: port, grace: 5)
         XCTAssertTrue(stopped)
         XCTAssertFalse(ProcessProbe.isAlive(started.pid))
-        XCTAssertNil(AIILocal.status(home: found.home, port: port).running)
-        XCTAssertTrue(AIILocal.status(home: found.home, port: port).startable)
-        let again = try await AIILocal.stop(home: found.home, port: port)
+        XCTAssertNil(AIILocal.running(home: home, port: port))
+        XCTAssertTrue(AIILocal.startable(home: home, port: port), "the launch record outlives the stop")
+        let again = try await AIILocal.stop(home: home, port: port)
         XCTAssertFalse(again, "nothing running: nothing stopped")
 
         _ = await waitUntil { ProcessProbe.listeningPIDs(port: port).isEmpty }
-        let restarted = try await AIILocal.start(home: found.home, port: port, launcher: .app(.craft))
+        let restarted = try await AIILocal.start(home: home, port: port, launcher: .app(.craft))
         defer { kill(restarted.pid, SIGKILL) }
-        XCTAssertEqual(AIILocal.status(home: found.home, port: port).running?.pid, restarted.pid)
+        XCTAssertEqual(AIILocal.running(home: home, port: port)?.pid, restarted.pid)
     }
 }
