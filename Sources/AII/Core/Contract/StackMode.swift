@@ -90,19 +90,21 @@ public enum StackMode: Sendable {
     /// What /health answers. The secret itself never answers; a proof needs a
     /// well-formed nonce and, on the shared stack, an identity it knows (the
     /// X-AII-App header: an app's name, or `aii`). Every answer carries this
-    /// build's contract.
+    /// build's contract, and on the shared stack the home's label when it has one
+    /// (asked or not: a label is public).
     public func healthAnswer(nonce: String?, requestedApp: String?) -> StackHealthAnswer {
         switch self {
         case .open:
             return StackHealthAnswer(stack: "open", proof: nil, app: nil, contract: AIIContract.version)
         case .multiApp(let keyring):
+            let label = keyring.home.flatMap(AIILabel.current(home:))
             guard let nonce, StackSecret.isWellFormedNonce(nonce),
                   let identity = StackIdentity(header: requestedApp),
                   let secret = keyring.secret(for: identity) else {
-                return StackHealthAnswer(stack: "proof", proof: nil, app: nil, contract: AIIContract.version)
+                return StackHealthAnswer(stack: "proof", proof: nil, app: nil, contract: AIIContract.version, label: label)
             }
             return StackHealthAnswer(stack: "proof", proof: StackSecret.proof(nonce: nonce, secret: secret),
-                                     app: identity, contract: AIIContract.version)
+                                     app: identity, contract: AIIContract.version, label: label)
         }
     }
 
@@ -128,19 +130,21 @@ public enum StackAdmission: Sendable, Equatable {
     public var isStack: Bool { identity?.isStack ?? false }
 }
 
-/// /health's stack fields. `proof` and `app` are left out of the JSON when nil.
-/// `app` carries the identity's name (`ambient`, …, or `aii`); `contract` is
-/// always this build's.
+/// /health's stack fields. `proof`, `app` and `label` are left out of the JSON when
+/// nil. `app` carries the identity's name (`ambient`, …, or `aii`); `contract` is
+/// always this build's; `label` is the home's own name (AIILabel).
 public struct StackHealthAnswer: Sendable, Equatable, Codable {
     public let stack: String
     public let proof: String?
     public let app: StackIdentity?
     public let contract: Int
+    public let label: String?
 
-    public init(stack: String, proof: String?, app: StackIdentity?, contract: Int) {
+    public init(stack: String, proof: String?, app: StackIdentity?, contract: Int, label: String? = nil) {
         self.stack = stack
         self.proof = proof
         self.app = app
         self.contract = contract
+        self.label = label
     }
 }

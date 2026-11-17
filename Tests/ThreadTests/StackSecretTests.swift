@@ -133,6 +133,19 @@ final class StackSecretTests: XCTestCase {
         }
     }
 
+    func testHealthSaysTheHomesLabelToACallerWithNoKey() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("rao-label-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = AIIHome(root: root)
+        try AIILabel.write("Atlas", home: home)
+        try await app(mode: .multiApp(StackKeyring(home: home))).test(.router) { client in
+            try await client.execute(uri: "/health", method: .get) { response in
+                XCTAssertEqual(response.status, .ok)
+                XCTAssertTrue(String(buffer: response.body).contains(#""label":"Atlas""#), String(buffer: response.body))
+            }
+        }
+    }
+
     func testAnOpenThreadsHealthNamesOnlyTheContract() async throws {
         try await app(mode: .open).test(.router) { client in
             try await client.execute(uri: "/health", method: .get, headers: [.ambientNonce: KAT.nonce]) { response in

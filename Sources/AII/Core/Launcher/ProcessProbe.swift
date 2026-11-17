@@ -42,6 +42,21 @@ public enum ProcessProbe {
         return String(decoding: buffer.prefix(Int(length)).map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 
+    /// The directory `pid` runs in, as the kernel reports it; nil when it can't be read
+    /// (another user's process, or gone).
+    public static func workingDirectory(of pid: pid_t) -> String? {
+        guard pid > 0 else { return nil }
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: &info.pvi_cdir.vip_path) { raw -> String in
+            let bytes = raw.bindMemory(to: UInt8.self)
+            let end = bytes.firstIndex(of: 0) ?? bytes.count
+            return String(decoding: bytes.prefix(end), as: UTF8.self)
+        }
+        return path.isEmpty ? nil : path
+    }
+
     public static func stamp(of pid: pid_t) -> ProcessStamp? {
         guard isAlive(pid) else { return nil }
         return ProcessStamp(pid: pid, processStart: startTime(of: pid))

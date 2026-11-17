@@ -28,7 +28,7 @@ struct AIICommand: AsyncParsableCommand {
             StatusCommand.self, DoctorCommand.self, SetupCommand.self,
             InstallCommand.self, UpdateCommand.self, UninstallCommand.self,
             StartCommand.self, StopCommand.self, RestartCommand.self, LogsCommand.self,
-            LanesCommand.self, KeysCommand.self, ModelsCommand.self, ResetCommand.self,
+            LabelCommand.self, LanesCommand.self, KeysCommand.self, ModelsCommand.self, ResetCommand.self,
         ])
 
     /// Whether bare `aii` opens the studio: a terminal on both ends, and nobody said not to.

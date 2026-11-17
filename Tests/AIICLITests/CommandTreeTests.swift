@@ -43,6 +43,7 @@ final class CommandTreeTests: XCTestCase {
             ["install"], ["install", "/x", "--debug", "--no-build"], ["update"], ["uninstall", "--yes"],
             ["start"], ["stop"], ["stop", "--force"], ["restart"], ["restart", "thread"], ["restart", "sewn"],
             ["logs"], ["logs", "sewn", "-f", "-n", "20"],
+            ["label"], ["label", "Apple Reasoning"], ["label", "--clear"],
             ["lanes"], ["lanes", "list"], ["lanes", "add", "notes", "--display", "Notes"], ["lanes", "remove", "notes", "--yes"],
             ["models"], ["models", "pull", "coding"], ["models", "remove", "coding", "--yes"],
             ["reset"], ["reset", "--yes"],

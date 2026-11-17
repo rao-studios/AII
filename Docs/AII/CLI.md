@@ -77,6 +77,7 @@ A checkout holds `Package.swift` and `Scripts/build-servers.sh`.
 
 | Command | What it does |
 |---|---|
+| `aii label [<text>] [--clear]` | The AII's own name in `aii/label.json`: printed, set (one line of 1 to 64 characters) or cleared. Both servers say it on `/health` to anyone, so whoever finds this AII by its port sees it by name; a running server says a new label at its next `/health`, with no restart. No secret is asked. `AII_HOME=<home> aii label …` names any AII home on this Mac. |
 | `aii keys` | Your provider keys in `keys/providers.json`, masked (the last 4 characters), with their source, writer and date; then the Supabase pair from `aii/aii.env`. A key is read on every call, so a change is live with no restart; `aii.env` is read by Sewn at start. |
 | `aii keys set <mistral\|tinker> [--stdin] [--force]` | Sets a key from a hidden prompt, or the first line of stdin with `--stdin` (`pbpaste \| aii keys set mistral --stdin`); never from an argument. A key your account handed over is kept unless `--force`. |
 | `aii keys remove <mistral\|tinker> --yes` | Removes a key; the servers run on device without it. |
@@ -89,7 +90,7 @@ A checkout holds `Package.swift` and `Scripts/build-servers.sh`.
 | `aii models` | Every pinned model, its revision, and whether it is on this Mac. It asks Sewn, so the stack must be up. |
 | `aii models pull <role>` | Fetches a pinned model at its commit and waits for it. The roles are `embedding`, `generalSmall`, `generalStandard`, `generalLarge`, `vision` and `coding`. |
 | `aii models remove <role> --yes` | Deletes a pinned model from this Mac. |
-| `aii reset [--yes]` | Brings the home back to a fresh layout 1. It stops the servers and removes `aii/bin/`, `aii/install.json`, `aii/run/`, `aii/leases/` and `layout.json`. It keeps the secrets, the keys, the lanes manifest, Sewn's data, the index and the models. Without `--yes` it only says what would go. It refuses while an app runs. |
+| `aii reset [--yes]` | Brings the home back to a fresh layout 1. It stops the servers and removes `aii/bin/`, `aii/install.json`, `aii/run/` (the launch records with it), `aii/leases/` and `layout.json`. It keeps the label, the secrets, the keys, the lanes manifest, Sewn's data, the index and the models. Without `--yes` it only says what would go. It refuses while an app runs. |
 
 ## The studio
 

@@ -395,10 +395,12 @@ aii/bin/{AIIServer,mlx.metallib}  the one installed build
 aii/install.json                  contract, sha256, installedBy, source (bundled or local), checkout, appVersion, installedAt
 aii/aii.env                       SUPABASE_URL, SUPABASE_ANON_KEY (public values only), for apps that ship accounts; written by the installing app, aii keys supabase and aii setup; read by Sewn at start
 aii/config.json                   ports and data directories, when moved from the defaults (AIIConfig)
+aii/label.json                    the AII's own name, one line of 1 to 64 characters (AIILabel); written by aii label or an app that manages AII homes, said on both servers' /health
 aii/lanes.json                    the lanes manifest (aii-lanes/1): each app's lane id, display name, bundle id, owner, and who registered it and when
 aii/sewn/db                       Sewn's data (its node id, wallets, Sinatra state)
 aii/thread/db                     the one index
 aii/run/{sewn,thread}.{json,log}, start.lock
+aii/run/{sewn,thread}.launch.json how each server was last launched (LaunchRecord: binary, arguments, working directory, environment without any credential-like name, ports); kept after a stop, so ManagedServer.relaunch can start it again with no secret
 aii/leases/<identity>.json        who needs the stack; <identity>.pinned.json holds it until released (aii start … aii stop)
 models/huggingface/               one copy of every model, for every app (HF_HOME of both servers)
 ```
@@ -414,6 +416,12 @@ layout 1. It keeps the secrets, the keys, the lanes manifest, Sewn's data, the i
 | `X-Ambient-Secret` / `x-ambient-secret` | the caller's secret on every HTTP request and gRPC call. The secret that matches names the caller and its lane. |
 | `X-Ambient-Nonce` + `X-AII-App` on `GET /health` | a launcher's challenge. The server answers `{"stack":"proof","proof":HMAC(secret, "ambient-stack-health-v1:" + nonce),"app":…,"contract":1}` without sending a secret. An open server answers `{"stack":"open","contract":1}`. |
 | `contract` | always answered. A supervisor replaces a server on an older contract, whoever holds it. |
+| `label` on `GET /health` | the home's own name (`aii/label.json`), answered to anyone, with or without a challenge, and left out when the home has none or the server is open. Public by design: a reader may show it, never trust it. A running server reads the file again when it changes. |
+
+A stopped server can be started again by anyone on this Mac with no secret: `ManagedServer.relaunch`
+replays the launch record its last spawn left, under the home's start lock, and never over a live
+process or a taken port. `AIILocal` finds the home a listening port belongs to (the process runs in
+`<home>/aii`, and that home's records name the port), and stops or starts that server.
 
 Both servers accept loopback only. A server started without `AII_HOME` is **open**: it asks for no
 secret and no launcher adopts it. The rules live in `StackSecret`, `StackMode` and `StackChallenge`,

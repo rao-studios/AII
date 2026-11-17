@@ -36,7 +36,8 @@ public final class StackKeyring: @unchecked Sendable {
         public var description: String { identity.map { "\($0.rawValue): \(reason)" } ?? reason }
     }
 
-    private let home: AIIHome?
+    /// The home the ring is read from; nil for a fixed ring.
+    public let home: AIIHome?
     private let minimumReloadInterval: TimeInterval
     private let maximumAge: TimeInterval
     private let now: @Sendable () -> Date

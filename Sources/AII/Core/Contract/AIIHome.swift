@@ -27,10 +27,12 @@
 //          bin/aii, bin/aii.json               the aii command and the checkout it was built from
 //          aii/bin/{AIIServer,mlx.metallib}
 //          aii/{install.json,aii.env,config.json}, aii/.aii.env.lock
+//          aii/label.json                      the AII's own name, said on /health (AIILabel)
 //          aii/lanes.json                      the lanes manifest (aii-lanes/1): every app's lane
 //          aii/sewn/db/                        Sewn's own data
 //          aii/thread/db/                      the one index, every app a lane
 //          aii/run/{sewn.json,thread.json,sewn.log,thread.log,start.lock}
+//          aii/run/{sewn,thread}.launch.json   how each was last launched, kept after a stop
 //          aii/leases/<identity>.json, <identity>.pinned.json
 //          apps/<app>/                         an app's private data (Craft's index, projects, evals)
 //          models/huggingface/
@@ -126,6 +128,8 @@ public struct AIIHome: Sendable, Hashable, CustomStringConvertible {
     /// Held while aii.env is read and rewritten, so two writers merge.
     public var aiiEnvLockFile: URL { aiiDirectory.appendingPathComponent(".aii.env.lock") }
     public var aiiConfigFile: URL { aiiDirectory.appendingPathComponent("config.json") }
+    /// The AII's own name (AIILabel), said on /health; absent until someone names it.
+    public var labelFile: URL { aiiDirectory.appendingPathComponent("label.json") }
     public var lanesFile: URL { aiiDirectory.appendingPathComponent("lanes.json") }
     /// Held while lanes.json gains or loses an app.
     public var lanesLockFile: URL { aiiDirectory.appendingPathComponent(".lanes.lock") }
@@ -134,6 +138,11 @@ public struct AIIHome: Sendable, Hashable, CustomStringConvertible {
     public var aiiRunDirectory: URL { aiiDirectory.appendingPathComponent("run", isDirectory: true) }
     public var sewnRunRecord: URL { aiiRunDirectory.appendingPathComponent("sewn.json") }
     public var threadRunRecord: URL { aiiRunDirectory.appendingPathComponent("thread.json") }
+    /// How each server was last launched (LaunchRecord), kept after it stops.
+    public var sewnLaunchRecord: URL { LaunchRecord.url(beside: sewnRunRecord) }
+    public var threadLaunchRecord: URL { LaunchRecord.url(beside: threadRunRecord) }
+    public func runRecord(for role: LaunchSpec.Role) -> URL { role == .sewn ? sewnRunRecord : threadRunRecord }
+    public func launchRecord(for role: LaunchSpec.Role) -> URL { role == .sewn ? sewnLaunchRecord : threadLaunchRecord }
     public var sewnLogFile: URL { aiiRunDirectory.appendingPathComponent("sewn.log") }
     public var threadLogFile: URL { aiiRunDirectory.appendingPathComponent("thread.log") }
     /// Held by whichever launcher is starting or stopping a server, in any app.

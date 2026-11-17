@@ -10,7 +10,8 @@
 //  IN:   X-Ambient-Nonce (the challenge) and, on a shared stack, X-AII-App
 //        (whose secret to prove).
 //  OUT:  status/timestamp/stack/contract always; proof and app only when the
-//        stack can make them (AII's `StackHealthAnswer`).
+//        stack can make them (AII's `StackHealthAnswer`); label when the home
+//        has one (AIILabel).
 //
 
 import Foundation
@@ -33,6 +34,9 @@ struct HealthResponse: Codable {
     let app: String?
     /// The contract this build speaks.
     let contract: Int
+    /// The AII's own name (AIILabel), when its home has one. Public: whoever finds
+    /// the server on its port may call it by this name.
+    let label: String?
 }
 
 func registerHealthRoute<Context: RequestContext>(_ router: some RouterMethods<Context>, stack: StackMode) {
@@ -46,7 +50,8 @@ func registerHealthRoute<Context: RequestContext>(_ router: some RouterMethods<C
             stack: answer.stack,
             proof: answer.proof,
             app: answer.app?.rawValue,
-            contract: answer.contract
+            contract: answer.contract,
+            label: answer.label
         )
     }
 }

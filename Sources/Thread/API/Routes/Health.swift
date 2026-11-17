@@ -25,6 +25,9 @@ struct HealthResponse: ResponseCodable {
     let app: String?
     /// The contract this build speaks.
     let contract: Int
+    /// The AII's own name (AIILabel), when its home has one. Public: whoever finds
+    /// the node on its port may call it by this name.
+    let label: String?
     /// The embedding model and the index it writes. Absent when unknown. Launchers
     /// read it to show a first-run download and a model change.
     let embedder: HealthEmbedder?
@@ -81,6 +84,7 @@ func registerHealthRoute(
             proof: answer.proof,
             app: answer.app?.rawValue,
             contract: answer.contract,
+            label: answer.label,
             embedder: await embedder(),
             extractor: await extractor()
         )

@@ -25,7 +25,8 @@
 //        fixed when the server was made: the install can change from an app's signed
 //        build to the person's own while an app runs.
 //        Both are spawned in their own session so they outlive the app that
-//        started them while others still need them.
+//        started them while others still need them. Every spawn leaves a
+//        LaunchRecord beside the run record (ManagedServer+Relaunch).
 //
 
 #if os(macOS)
@@ -282,6 +283,9 @@ public actor ManagedServer {
 
         let pid = try Self.posixSpawn(spec, newSession: true)
         Self.reap(pid)
+        // How it was launched, kept after it stops, so anyone on this Mac can start it
+        // again the same way (relaunch).
+        try? LaunchRecord(spec: spec, launcher: self.launcher).write(LaunchRecord.url(beside: spec.runRecord))
         let launcher = RunRecord.Launcher(identity: self.launcher, process: ProcessProbe.current)
         func record() -> RunRecord {
             RunRecord(
