@@ -618,7 +618,7 @@ filters by owner, group and media type only, so the kind filter runs in AII, ove
 | Filer | Kinds | Document ids | Groups on the wire |
 | --- | --- | --- | --- |
 | Ambient | `reading`, `turn`, `insight`, `ledger` | `ambient/<kind>/<16 hex>`, keyed on the owner: each record's one id, filed or claimed ([`Schemas/Ambient`](../Schemas/Ambient/Storage.md)) | `ambient-reading-<owner>`, `ambient-exchange-<owner>`, `ambient-index-<owner>` |
-| Craft | `project`, `approach`, `lesson`, `note`, `instruction`, `ledger`, `settings`, `code` | `craft/<kind>/<project>.<record>.<version>` for a record, `<project>.<version>` for a ledger or settings, `<scope>.<path>.<hash>` for code: each version is its own id ([`Schemas/Craft`](../Schemas/Craft/Storage.md)) | `craft-records`, `craft-index`, `craft-code-<scope>` |
+| Craft | `project`, `approach`, `lesson`, `note`, `instruction`, `ledger`, `settings`, `code`, `episode` | `craft/<kind>/<project>.<record>.<version>` for a record, `craft/episode/<project>.<saved>.<turn>.<version>` for a saved session's turn, `<project>.<version>` for a ledger or settings, `<scope>.<path>.<hash>` for code: each version is its own id ([`Schemas/Craft`](../Schemas/Craft/Storage.md)) | `craft-records`, `craft-index`, `craft-code-<scope>` |
 | Link (shared, every lane reads it) | `note` | `link/note/<16 hex>` | `link-<owner>` ([`Schemas/Link`](../Schemas/Link/Link.md)) |
 | Veil | `image` | `veil/image/img-<32 hex>` | `veil-<12 hex>`, one per picture set |
 | Sewn | `memory` | `<app>/memory/<id>` | `<app>-memory-<owner>`, `<app>-resonance-<owner>` |

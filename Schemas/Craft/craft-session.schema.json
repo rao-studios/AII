@@ -1,0 +1,445 @@
+{
+  "$defs" : {
+    "conversation" : {
+      "properties" : {
+        "activePlan" : {
+          "description" : "PlanProposal: the approved plan being worked toward",
+          "type" : "object"
+        },
+        "askMode" : {
+          "type" : "boolean"
+        },
+        "carried" : {
+          "description" : "what the person said that no round read: the next turn's start",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "contextMode" : {
+          "type" : "string"
+        },
+        "contextScope" : {
+          "type" : "string"
+        },
+        "id" : {
+          "description" : "the session's own id (a UUID), which a reset moves; its attachments and pictures are filed under it",
+          "type" : "string"
+        },
+        "messages" : {
+          "description" : "Message: what the front ends show",
+          "items" : {
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "permissionMode" : {
+          "type" : "string"
+        },
+        "queryExpansion" : {
+          "type" : "boolean"
+        },
+        "reading" : {
+          "description" : "ReadingBudgets, when the session holds its own",
+          "type" : "object"
+        },
+        "scope" : {
+          "type" : "string"
+        },
+        "startedAt" : {
+          "description" : "seconds since 2001-01-01T00:00:00Z (Foundation's reference date), with the fraction",
+          "type" : "number"
+        },
+        "thinking" : {
+          "type" : "string"
+        },
+        "timeLimitMinutes" : {
+          "type" : "integer"
+        },
+        "workflows" : {
+          "description" : "CraftConfig.WorkflowSettings, when the session holds its own",
+          "type" : "object"
+        }
+      },
+      "required" : [
+        "id",
+        "startedAt",
+        "messages",
+        "askMode",
+        "permissionMode",
+        "contextMode",
+        "contextScope",
+        "queryExpansion",
+        "scope",
+        "carried"
+      ],
+      "type" : "object"
+    },
+    "entry" : {
+      "properties" : {
+        "at" : {
+          "description" : "when it happened: the replay's clock",
+          "type" : "number"
+        },
+        "input" : {
+          "description" : "TranscriptInput: the person's words, a steer, an agent event, a decision; deltas in a row joined",
+          "type" : "object"
+        }
+      },
+      "required" : [
+        "at",
+        "input"
+      ],
+      "type" : "object"
+    },
+    "episode" : {
+      "description" : "A saved session's turn as craft-records files it: the payload of a document of kind `episode`, craft/episode/<project key>.<saved id>.<turn>.<v16>, whose text is the turn as the work went (SessionEpisodeText). Spec: Schema/Storage.md §2, §3.",
+      "properties" : {
+        "episode" : {
+          "properties" : {
+            "agents" : {
+              "description" : "the agents it gave work to, by word",
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "ask" : {
+              "description" : "what the person asked",
+              "type" : "string"
+            },
+            "at" : {
+              "description" : "seconds since 2001-01-01T00:00:00Z (Foundation's reference date), with the fraction",
+              "type" : "number"
+            },
+            "beats" : {
+              "items" : {
+                "properties" : {
+                  "agent" : {
+                    "description" : "the agent's word, for an agent beat",
+                    "type" : "string"
+                  },
+                  "files" : {
+                    "items" : {
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  },
+                  "kind" : {
+                    "enum" : [
+                      "plan",
+                      "read",
+                      "edit",
+                      "run",
+                      "fetch",
+                      "agent",
+                      "steer",
+                      "decision",
+                      "question",
+                      "check",
+                      "compaction",
+                      "error"
+                    ]
+                  },
+                  "text" : {
+                    "description" : "the beat as one line: `$web given \"…\" → …`, `edited Sources/A.swift (+8 −2)`",
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "kind",
+                  "text",
+                  "files"
+                ],
+                "type" : "object"
+              },
+              "type" : "array"
+            },
+            "files" : {
+              "description" : "the files it read or changed",
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "outcome" : {
+              "description" : "how it ended: done: \"…\", stopped by the person, cut short",
+              "type" : "string"
+            },
+            "turn" : {
+              "description" : "the turn in its session, from 1",
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "turn",
+            "ask",
+            "beats",
+            "outcome",
+            "agents",
+            "files",
+            "at"
+          ],
+          "type" : "object"
+        },
+        "format" : {
+          "const" : "craft-session/1"
+        },
+        "kind" : {
+          "const" : "episode"
+        },
+        "model" : {
+          "type" : "string"
+        },
+        "path" : {
+          "description" : "the folder it was saved from",
+          "type" : "string"
+        },
+        "projectKey" : {
+          "description" : "the key the project's knowledge is filed under",
+          "type" : "string"
+        },
+        "saved" : {
+          "description" : "the saved session's id: ss- and 16 hex, the same through every save",
+          "type" : "string"
+        },
+        "savedAt" : {
+          "description" : "seconds since 2001-01-01T00:00:00Z (Foundation's reference date), with the fraction",
+          "type" : "number"
+        },
+        "title" : {
+          "type" : "string"
+        },
+        "turns" : {
+          "description" : "how many turns the saved session holds",
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "format",
+        "kind",
+        "saved",
+        "title",
+        "path",
+        "projectKey",
+        "model",
+        "savedAt",
+        "turns",
+        "episode"
+      ],
+      "type" : "object"
+    },
+    "history" : {
+      "properties" : {
+        "lastSpecs" : {
+          "description" : "the last tool specs a turn rendered",
+          "items" : {
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "lastSystem" : {
+          "description" : "the last system prompt a turn rendered",
+          "type" : "string"
+        },
+        "ledger" : {
+          "properties" : {
+            "askIndex" : {
+              "type" : "integer"
+            },
+            "askText" : {
+              "type" : "string"
+            },
+            "asks" : {
+              "description" : "every ask the history began, as stored",
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "held" : {
+              "additionalProperties" : {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              },
+              "description" : "the pack cards each stored ask carries",
+              "type" : "object"
+            },
+            "history" : {
+              "description" : "ChatMessage: the model's history, a call caught without its result dropped",
+              "items" : {
+                "type" : "object"
+              },
+              "type" : "array"
+            },
+            "lastNote" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "history",
+            "held",
+            "asks"
+          ],
+          "type" : "object"
+        },
+        "offeredPackages" : {
+          "description" : "the agent packages the session's prompts offer",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "packagesDecided" : {
+          "type" : "boolean"
+        },
+        "sessionRules" : {
+          "description" : "the \"always allow\" answers given this session",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "turns" : {
+          "description" : "TurnLog.Entry: each turn as Craft saw it end",
+          "items" : {
+            "type" : "object"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "ledger",
+        "turns",
+        "sessionRules",
+        "packagesDecided",
+        "lastSystem",
+        "lastSpecs"
+      ],
+      "type" : "object"
+    }
+  },
+  "$id" : "craft-session/1",
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "description" : "A session as Craft keeps it on this Mac: a tab kept open across a relaunch (sessions/<project id>/<tab id>/session.json) or a session the person saved. Its transcript is the log that built it, replayed with the times it was lived at; never stored in the project, never sent to an AII. Spec: Schema/Storage.md.",
+  "properties" : {
+    "conversation" : {
+      "$ref" : "#/$defs/conversation"
+    },
+    "folder" : {
+      "description" : "the folder the tab was open on: which window's tabs it rejoins",
+      "type" : "string"
+    },
+    "format" : {
+      "const" : "craft-session/1"
+    },
+    "gpu" : {
+      "description" : "the model's cache kept beside the copy (gpu.safetensors, frigate-slot/1); absent when none was kept",
+      "properties" : {
+        "bytes" : {
+          "type" : "integer"
+        },
+        "keptAt" : {
+          "description" : "seconds since 2001-01-01T00:00:00Z (Foundation's reference date), with the fraction",
+          "type" : "number"
+        },
+        "model" : {
+          "description" : "the model that read it (ModelDescriptor.id)",
+          "type" : "string"
+        },
+        "tokens" : {
+          "description" : "the conversation's tokens it holds",
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "model",
+        "tokens",
+        "bytes",
+        "keptAt"
+      ],
+      "type" : "object"
+    },
+    "history" : {
+      "$ref" : "#/$defs/history",
+      "description" : "absent when the session's agent never ran"
+    },
+    "keptAt" : {
+      "description" : "seconds since 2001-01-01T00:00:00Z (Foundation's reference date), with the fraction",
+      "type" : "number"
+    },
+    "model" : {
+      "type" : "string"
+    },
+    "openedAt" : {
+      "description" : "seconds since 2001-01-01T00:00:00Z (Foundation's reference date), with the fraction",
+      "type" : "number"
+    },
+    "projectID" : {
+      "description" : "ProjectIdentity.id",
+      "type" : "string"
+    },
+    "projectKey" : {
+      "description" : "the key the project's knowledge is filed under",
+      "type" : "string"
+    },
+    "savedAs" : {
+      "description" : "the saved session this copy was saved as or restored from",
+      "type" : "string"
+    },
+    "tab" : {
+      "description" : "the tab's id, which a reset does not move",
+      "type" : "string"
+    },
+    "title" : {
+      "type" : "string"
+    },
+    "transcript" : {
+      "properties" : {
+        "entries" : {
+          "items" : {
+            "$ref" : "#/$defs/entry"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "entries"
+      ],
+      "type" : "object"
+    },
+    "turns" : {
+      "description" : "how many turns ended",
+      "type" : "integer"
+    },
+    "unverified" : {
+      "additionalProperties" : {
+        "items" : {
+          "type" : "string"
+        },
+        "type" : "array"
+      },
+      "description" : "what each reply cited that the project lacked, by the row's id",
+      "type" : "object"
+    }
+  },
+  "required" : [
+    "format",
+    "tab",
+    "title",
+    "folder",
+    "projectID",
+    "projectKey",
+    "model",
+    "turns",
+    "openedAt",
+    "keptAt",
+    "conversation",
+    "transcript",
+    "unverified"
+  ],
+  "title" : "Craft session",
+  "type" : "object"
+}

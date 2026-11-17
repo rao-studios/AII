@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `ec26141c` by `Scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `e878c389` by `Scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -12,9 +12,10 @@ rebuilt from the project's files or belongs to this Mac on purpose (§9).
 | [`craft-index.schema.json`](craft-index.schema.json) | Every document in `craft-index` as AII holds it: its kinds, their ids and entities, each payload (§2, §6, §7) |
 | [`code-card.schema.json`](code-card.schema.json) | A code card (`craft-card/1`), what `craft-code` holds (§8) |
 | Craft's `Docs/craft-turn.schema.json` | A turn record (`craft-turn/1`), this Mac's log of one turn (§9) |
+| [`craft-session.schema.json`](craft-session.schema.json) | A session copy (`craft-session/1`): a tab kept across a relaunch or a saved session, this Mac's (§9); and a saved session's episode as `craft-records` files it (§2) |
 
-All four are generated from the code (`RecordSchemaJSON`, `IndexGroupSchemaJSON`, `CardSchemaJSON`,
-`TurnRecordSchemaJSON`); `CRAFT_UPDATE_GOLDEN=1` rewrites them, and a test fails when they drift — another builds each
+All five are generated from the code (`RecordSchemaJSON`, `IndexGroupSchemaJSON`, `CardSchemaJSON`,
+`TurnRecordSchemaJSON`, `SessionSchemaJSON`); `CRAFT_UPDATE_GOLDEN=1` rewrites them, and a test fails when they drift — another builds each
 `craft-index` document as the stores do and holds it to its schema. AII's repository keeps a copy of this document and
 the schemas of what is in AII, under `Schemas/Craft/`: `Scripts/schema/publish-aii.py` writes it, and it is never edited
 there.
@@ -28,7 +29,7 @@ Four layers, each named for what it is. Only the second is knowledge Craft learn
 | **Code index** (derived) | code cards — and so how the project writes code | AII (`craft-code`) and this Mac's index | the watch engine (`ProjectWatch` → `LazyThreadIndex`) | retrieval, the knowledge window |
 | **Craft records** (learned or told) | `project`, `approach`, `lesson`, `note`, `instruction` — each with evidence and staleness; the lessons every project shares, every workflow's | AII (`craft-records`, `craft-index`) | the record keeper (`RecordKeeper`), `InstructionsStore`, `WorkflowLessonKeeper` | retrieval, the prompt, the knowledge window; workflow lessons a workflow's `lessons` step and the pack's lesson cards |
 | **Bookkeeping** (not knowledge) | the recall ledger; project settings | AII (`craft-index`) | the keeper; `SettingsStore` | the keeper, `ConfigStore` |
-| **Local only** | turn logs, the screenshots a request attached, the text of the documents it attached, the AIIs Craft asks, global app config, the outbox | `~/.rao/apps/craft/…`, `~/Library/Application Support/Craft/config.json` | the turn, the AIIs window and `craft aii`, Settings | Lantern, every session's sourcing, every process |
+| **Local only** | turn logs, the sessions kept across a relaunch and the sessions the person saved, the screenshots a request attached, the text of the documents it attached, the AIIs Craft asks, global app config, the outbox | `~/.rao/apps/craft/…`, `~/Library/Application Support/Craft/config.json` | the turn, the AIIs window and `craft aii`, Settings | Lantern, every session's sourcing, every process |
 
 ## 2. Groups
 
@@ -38,7 +39,7 @@ apps share with no account, `aii-local`. Every group begins `craft-`, every docu
 
 | Group | Holds | Searched |
 | --- | --- | --- |
-| `craft-records` | approach, lesson and note records; the workflow lessons, every project's under the key `learned` | yes — the record query (`ThreadBoot.searchRecords`), which drops a project's lessons (they come by place) and notes a workflow lesson by meaning for the lesson cards; the keeper reads workflow lessons by their prefix (`craft/lesson/learned.`) |
+| `craft-records` | approach, lesson and note records; the workflow lessons, every project's under the key `learned`; the saved sessions' episodes, one a turn (kind `episode`, no record: no keeper loads one) | yes — the record query (`ThreadBoot.searchRecords`), which drops a project's lessons (they come by place), notes a workflow lesson by meaning for the lesson cards, and notes an episode by meaning for the saved-sessions band (`CodeContextRetriever.isEpisode`, before anything takes it for a record or a card), asking for as many more hits as the band places while it is on (Settings › Pipeline › Sourcing), so a record keeps its place; the keeper reads workflow lessons by their prefix (`craft/lesson/learned.`) |
 | `craft-index` | the project record, instruction records (every project's under the key `user`), the recall ledger, the settings | no — read by prefix |
 | `craft-code` | every project's code cards, one document per file; the project is the id's first segment (`<scope>.`) and the entity `project:<scope>` | yes — code queries: this project's by its id; every project's that the graph links to it, as reference, when the session reaches every project |
 
@@ -68,6 +69,7 @@ reads AII again rather than write back from memory.
 | Ledger | `ledger` | `craft/ledger/<project key>.<v16>` |
 | Settings | `settings` | `craft/settings/<project key>.<v16>` |
 | Code card | `code` | `craft/code/<scope>.<path key>.<hash>` |
+| Episode | `episode` | `craft/episode/<project key>.<saved id>.<turn>.<v16>` |
 
 - **`<project key>`** is the project's id when it is a plain name (`g0a7fe5079e7a`, `n-shop`), else `h` and 12 hex of
   its hash (`CraftThreadAddress.projectKey`). What holds for every project is under the key `user`
@@ -78,6 +80,11 @@ reads AII again rather than write back from memory.
   to the commit's id when a session next opens it (`IdentityMove`, the one place a change of identity is followed).
 - **`<record id>`** is deterministic: the kind's prefix and 16 hex of a hash over the format, the kind, the project
   and what the record is about (`RecordID`). Two writers of one fact write one record.
+- **`<saved id>`** is `ss-` and 16 hex, minted at a session's first save and kept through every save after
+  (`SavedSessionHead.mint`); **`<turn>`** is the turn's number, three digits. An episode's text is the turn as the work
+  went (`SessionEpisodeText`), its payload `{"format":"craft-session/1","kind":"episode","saved","title","path",
+  "projectKey","model","savedAt","turns","episode"}` (`SavedEpisode`); its `<v16>` hashes the text's substance and not
+  the save's time, so a save that changed nothing in a turn files nothing for it (`EpisodeStore`).
 - **`<v16>`** is 16 hex of the content's hash: every version is a document of its own. A write files the new one,
   naming the one it replaces in the envelope's `supersedes`, reads it back, then removes the older; a load keeps the
   highest revision, its bytes breaking a tie, so two writers converge (`RecordStore`).
@@ -200,7 +207,9 @@ Under `~/.rao/apps/craft/` (`AII_HOME` moves `~/.rao`):
 | `turns/<project id>/` | one `craft-turn/1` record a turn | this Mac's runs, a log, not knowledge |
 | `lantern/<project id>/` | Lantern's grades of steps | this Mac's review of its own runs |
 | `captures/<project id>/` | the screenshots a request attached, one PNG each, pruned with the turn logs that name them | this Mac's pictures of its own screen; the turn keeps what the vision model read in them, never the picture |
-| `attachments/<project id>/<session id>/` | the text of each document a request attached, read when it was attached; deleted once the turn placed it whole, else when its session closes, and every folder when the app starts | the person's own files, read for one conversation: the turn's block holds what the model was shown, nothing is kept past the session |
+| `attachments/<project id>/<session id>/` | the text of each document a request attached, read when it was attached; deleted once the turn placed it whole, else when its session closes, and every folder but a kept or a saved session's when the app starts | the person's own files, read for one conversation: the turn's block holds what the model was shown, nothing is kept past the session but a session kept or saved |
+| `sessions/<project id>/<tab id>/` | each open tab's copy (`session.json`, `craft-session/1`) and its model cache (`gpu.safetensors`, `frigate-slot/1`), written as each turn ends and at quit; removed when the person resets or closes the tab | this Mac's open work and model state: the cache is gigabytes and fits one model, and the copy points at this Mac's attachments and pictures |
+| `saved/<project key>/<saved id>/` | each saved session's copy and model cache, written by a save, restored into a new tab; the cache removable on its own, the whole removed only by the person | the same; what a saved session teaches is in AII, as its episodes (§2) |
 | `aiis.json` | the AIIs Craft asks for knowledge, and which are connected (`craft-aii-connections/1`) | this Mac's connections: what each one is is asked of it, and every session's sourcing reads the file |
 | `outbox/` | records and ledgers AII has not confirmed yet | in transit: filed and removed on the next contact |
 | `agents/`, `rules.json` | installed agent runners; "Always allow" rules | this Mac's software and permissions |
