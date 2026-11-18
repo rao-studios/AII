@@ -1,6 +1,6 @@
 # craft-storage/1
 
-> Published from Craft's `Schema/Storage.md` at `e878c389` by `Scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
+> Published from Craft's `Schema/Storage.md` at `bb0c0ff5` by `Scripts/schema/publish-aii.py`. Edit it there: this copy is replaced on every publish.
 
 Where everything Craft keeps lives, in what shape, who writes it and who reads it. **The AII folder is the
 project's whole memory: move it to another Mac and every project works unchanged.** What is not in AII is either
@@ -206,13 +206,14 @@ Under `~/.rao/apps/craft/` (`AII_HOME` moves `~/.rao`):
 | `index/<scope>/` | this clone's code index | derived: rebuilt from the files |
 | `turns/<project id>/` | one `craft-turn/1` record a turn | this Mac's runs, a log, not knowledge |
 | `lantern/<project id>/` | Lantern's grades of steps | this Mac's review of its own runs |
-| `captures/<project id>/` | the screenshots a request attached, one PNG each, pruned with the turn logs that name them | this Mac's pictures of its own screen; the turn keeps what the vision model read in them, never the picture |
+| `captures/<project id>/` | the screenshots a request attached, one file each: `<id>.png` for a capture, `<id>/<its name>` for a picture the person named; pruned with the turn logs that name them | this Mac's pictures of its own screen; the turn keeps what the vision model read in them, never the picture |
 | `attachments/<project id>/<session id>/` | the text of each document a request attached, read when it was attached; deleted once the turn placed it whole, else when its session closes, and every folder but a kept or a saved session's when the app starts | the person's own files, read for one conversation: the turn's block holds what the model was shown, nothing is kept past the session but a session kept or saved |
 | `sessions/<project id>/<tab id>/` | each open tab's copy (`session.json`, `craft-session/1`) and its model cache (`gpu.safetensors`, `frigate-slot/1`), written as each turn ends and at quit; removed when the person resets or closes the tab | this Mac's open work and model state: the cache is gigabytes and fits one model, and the copy points at this Mac's attachments and pictures |
 | `saved/<project key>/<saved id>/` | each saved session's copy and model cache, written by a save, restored into a new tab; the cache removable on its own, the whole removed only by the person | the same; what a saved session teaches is in AII, as its episodes (§2) |
 | `aiis.json` | the AIIs Craft asks for knowledge, and which are connected (`craft-aii-connections/1`) | this Mac's connections: what each one is is asked of it, and every session's sourcing reads the file |
 | `outbox/` | records and ledgers AII has not confirmed yet | in transit: filed and removed on the next contact |
 | `agents/`, `rules.json` | installed agent runners; "Always allow" rules | this Mac's software and permissions |
+| `agent-support/<Name>/` | the files an installed agent keeps between calls, for one that declares `keeps` (`VeilAgent/signatures/`): made on its first call, kept through updates, rebuilds and removal, removed only with its files | the agent's own data, in its own format: what it is for is the agent's, not Craft's to read |
 
 And `~/Library/Application Support/Craft/config.json`: the global config — models, appearance, retrieval switches —
 machine-wide, not a project's.
