@@ -277,7 +277,11 @@ actor LocalInference {
                     argumentsJSON = "{}"
                 }
                 continuation.yield(.toolCall(name: call.function.name, arguments: argumentsJSON))
-            case .info:
+            case .rejectedToolCall(let rejection):
+                // A call the parser would not make executable: only the recovery below reads it.
+                raw += rejection.rawTextPreview
+            case .reasoning, .steering, .info:
+                // Thinking is not the answer, and this route never steers.
                 break
             }
         }
